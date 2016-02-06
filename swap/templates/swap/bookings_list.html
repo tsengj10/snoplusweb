@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}
+Bookings list
+{% endblock %}
+{% block head %}
+{% endblock %}
+{% block content %}
+
+<table border=1>
+<tr>
+  <th>Approved</th>
+  <th>Begin date</th>
+  <th>End date</th>
+  <th>Resource</th>
+  <th>Name</th>
+</tr>
+{% for booking in bookings %}
+<tr>
+  <td>{% if booking.approval != None %}{{ booking.approval.user }}{% else %}No{% endif %}
+  <td>{{ booking.begin_time }}</td>
+  <td>{{ booking.end_time }}</td>
+  <td>{{ booking.resource }}</td>
+  <td>{{ booking.user }}</td>
+</tr>
+{% endfor %}
+
+{% endblock %}

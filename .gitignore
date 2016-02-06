@@ -1,0 +1,6 @@
+**/__pycache__
+**.pdf
+**.pyc
+**.sqlite3
+swap/migrations/**
+swap/fixtures/**
