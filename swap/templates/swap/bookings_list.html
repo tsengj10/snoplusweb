@@ -14,8 +14,41 @@ Bookings list
 <script src='{% static "js/buttons.colVis.min.js" %}'></script>
 <script src='{% static "js/buttons.print.min.js" %}'></script>
 <script src='{% static "js/jquery-ui-1.11.4/jquery-ui.min.js" %}'></script>
+
+<style>
+input.dpicker { width: 6em }
+</style>
 {% endblock %}
 {% block content %}
+
+<table>
+<tr>
+  <td>
+    <select id='res'>
+      <option value=""></option>
+      {% for res in resources %}
+      <option value="{{ res.pk }}">{{ res.name }}</option>
+      {% endfor %}
+    </select>
+  </td>
+  <td>
+    <input id='startdate' class='dpicker' type='text'>
+  </td>
+  <td>
+    <input id='stopdate' class='dpicker' type='text'>
+  </td>
+</tr>
+<tr>
+  <td>
+  </td>
+  <td>
+    <input id='starttime' type='text'>
+  </td>
+  <td>
+    <input id='stoptime' type='text'>
+  </td>
+</table>
+<button type='button' id='requestbutton'>Request</button>
 
 <table border=1>
 <tr>
@@ -34,5 +67,14 @@ Bookings list
   <td>{{ booking.user }}</td>
 </tr>
 {% endfor %}
+</table>
 
+{% endblock %}
+{% block scripts %}
+<script>
+$(function() {
+  $('#startdate').datepicker('getDate');
+  $('#stopdate').datepicker('getDate');
+});
+</script>
 {% endblock %}

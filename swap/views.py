@@ -9,7 +9,7 @@ import json
 import logging
 import datetime
 
-from .models import Resource, Approver, Booking
+from .models import Resource, Approver, Booking, Comment
 
 # Create your views here.
 
@@ -28,12 +28,14 @@ def bookings(request):
   # list bookings according to query
   # by default, go back 1 year, forward 90 days
   qs = request.GET
-  now = datetime.datetime.utcnow()
-  past = (now + datetime.timedelta(-365)).date()
-  future = (now + datetime.timedelta(90)).date()
-  kwargs = { 'begin_time__gte' : past,
-             'begin_time__lte' : future,
-           }
+  now = datetime.datetime.now(datetime.timezone.utc)
+  #past = (now + datetime.timedelta(-90)).isoformat(' ')
+  #future = (now + datetime.timedelta(90)).isoformat(' ')
+  past = (now + datetime.timedelta(-90))
+  future = (now + datetime.timedelta(90))
+  kwargs = {}
+  kwargs['begin_time__gte'] = past
+  kwargs['begin_time__lte'] = future
   for k,v in [ ('u', 'user__pk'), # user
                ('c', 'group__pk'), # group to charge
                ('o', 'resource__group__pk'), # resource "owner"
@@ -51,7 +53,7 @@ def bookings(request):
     n = qs.get(k)
     if n != None and n.isnumeric():
       kwargs[v] = datetime.datetime.utcfromtimestamp(int(n))
-  bs = Booking.objects.filter(kwargs).order_by('begin_time')
+  bs = Booking.objects.filter(**kwargs).order_by('begin_time')
   comments = Comment.objects.filter(time__gte=past)
   users = User.objects.all()
   groups = Group.objects.all()

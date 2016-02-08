@@ -1,8 +1,11 @@
 from django.db import models
 
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 
 # Create your models here.
+
+def now_utc():
+  return datetime.now(timezone.utc)
 
 class Resource(models.Model):
   # a resource to be swapped
@@ -14,7 +17,7 @@ class Resource(models.Model):
   available = models.BooleanField(default=True)
   advance_period = models.DurationField(default=timedelta(90)) # 90 days
   # history fields:  when this resource started/stopped taking bookings
-  open_time = models.DateTimeField(default=datetime.utcnow) # start taking bookings
+  open_time = models.DateTimeField(default=now_utc) # start taking bookings
   close_time = models.DateTimeField(null=True)
   modification_time = models.DateTimeField(auto_now=True)
 
@@ -37,8 +40,8 @@ class Booking(models.Model):
   approval = models.ForeignKey('Approver', related_name='approval',
                                null=True, default=None,
                                help_text="booking approved by whom")
-  begin_time = models.DateTimeField()
-  end_time = models.DateTimeField()
+  begin_time = models.DateTimeField(['%Y-%m-%d %H:%M:%S'])
+  end_time = models.DateTimeField(['%Y-%m-%d %H:%M:%S'])
   request_time = models.DateTimeField(auto_now_add=True)
   modification_time = models.DateTimeField(auto_now=True)
 
