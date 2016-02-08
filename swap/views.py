@@ -1,6 +1,13 @@
 from django.views.generic.list import ListView
 from django.core.urlresolvers import reverse_lazy
-from django.shortcuts import render
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib.auth.models import User, Group
+from django.core.urlresolvers import reverse
+from django.http import JsonResponse
+import json
+import logging
+import datetime
 
 from .models import Resource, Approver, Booking
 

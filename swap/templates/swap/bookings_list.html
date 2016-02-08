@@ -1,8 +1,19 @@
 {% extends "base.html" %}
+{% load staticfiles %}
 {% block title %}
 Bookings list
 {% endblock %}
 {% block head %}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href='{% static "js/jquery.dataTables.min.css" %}'>
+<link rel="stylesheet" href='{% static "js/buttons.dataTables.min.css" %}'>
+<link rel="stylesheet" href='{% static "js/jquery-ui-1.11.4/jquery-ui.min.css" %}'>
+<script src='{% static "js/jquery-1.12.0.min.js" %}'></script>
+<script src='{% static "js/jquery.dataTables.min.js" %}'></script>
+<script src='{% static "js/dataTables.buttons.min.js" %}'></script>
+<script src='{% static "js/buttons.colVis.min.js" %}'></script>
+<script src='{% static "js/buttons.print.min.js" %}'></script>
+<script src='{% static "js/jquery-ui-1.11.4/jquery-ui.min.js" %}'></script>
 {% endblock %}
 {% block content %}
 
