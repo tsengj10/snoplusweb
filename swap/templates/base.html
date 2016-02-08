@@ -10,6 +10,16 @@
 <h1>SNO+ Resource Swap</h1>
 {% block content %}
 {% endblock %}
+
+{% if user.is_authenticated %}
+<hr />
+<p>You are logged in as {{ user }} <a href="{% url 'swap_logout' %}">(Log out)</a></p>
+<!-- if using webauth, replace django.contrib.auth.views.logout with webauth.views.logout -->
+<hr />
+{% endif %}
+
+{% block scripts %}
+{% endblock %}
 </body>
 </html>
 

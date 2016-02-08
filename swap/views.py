@@ -20,9 +20,20 @@ class ResourceList(ListView):
 
 @login_required
 def bookings(request):
+  if request.method == 'POST':
+    # booking request or request approval
+    # then redirect to bookings list
+    return redirect('swap:bookings')
+
   # list bookings according to query
+  # by default, go back 1 year, forward 90 days
   qs = request.GET
-  kwargs = {}
+  now = datetime.datetime.utcnow()
+  past = (now + datetime.timedelta(-365)).date()
+  future = (now + datetime.timedelta(90)).date()
+  kwargs = { 'begin_time__gte' : past,
+             'begin_time__lte' : future,
+           }
   for k,v in [ ('u', 'user__pk'), # user
                ('c', 'group__pk'), # group to charge
                ('o', 'resource__group__pk'), # resource "owner"
@@ -40,20 +51,26 @@ def bookings(request):
     n = qs.get(k)
     if n != None and n.isnumeric():
       kwargs[v] = datetime.datetime.utcfromtimestamp(int(n))
-  if len(kwargs) > 0:
-    bs = Booking.objects.filter(kwargs).order_by('begin_time')
-  else:
-    bs = Booking.objects.order_by('begin_time')
-  context = { 'bookings': bs }
+  bs = Booking.objects.filter(kwargs).order_by('begin_time')
+  comments = Comment.objects.filter(time__gte=past)
+  users = User.objects.all()
+  groups = Group.objects.all()
+  approvers = Approver.objects.all()
+  resources = Resource.objects.all()
+  context = { 'bookings': bs,
+              'comments': comments,
+              'users': users,
+              'groups': groups,
+              'approvers': approvers,
+              'resources': resources,
+            }
   return render(request, 'swap/bookings_list.html', context)
 
 # request/approve bookings
 
-@login_required
 def request_resource(request, resource):
   pass
 
-@login_required
 def approve_request(request, req):
   pass
 

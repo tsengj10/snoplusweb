@@ -1,14 +1,22 @@
 from django.db import models
 
+from datetime import datetime, time, timedelta
+
 # Create your models here.
 
 class Resource(models.Model):
   # a resource to be swapped
   name = models.CharField(max_length=100)
-  description = models.TextField(blank=True)
-  default_begin_time = models.TimeField()
-  default_end_time = models.TimeField()
+  # also use to make name for static information page
   group = models.ForeignKey('auth.Group')
+  default_begin_time = models.TimeField(default=time(14,0)) # 2pm
+  default_end_time = models.TimeField(default=time(12,0)) # 12 noon
+  available = models.BooleanField(default=True)
+  advance_period = models.DurationField(default=timedelta(90)) # 90 days
+  # history fields:  when this resource started/stopped taking bookings
+  open_time = models.DateTimeField(default=datetime.utcnow) # start taking bookings
+  close_time = models.DateTimeField(null=True)
+  modification_time = models.DateTimeField(auto_now=True)
 
   def __str__(self):
     return self.name
