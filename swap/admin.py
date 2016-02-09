@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Resource, Approver, Booking
+from .models import Resource, Approver, Booking, Zone, Comment
 
 # Register your models here.
 
@@ -13,7 +13,9 @@ class BookingAdmin(admin.ModelAdmin):
              'approval',
            )
 
+admin.site.register(Zone)
 admin.site.register(Resource)
 admin.site.register(Approver)
+admin.site.register(Comment)
 admin.site.register(Booking, BookingAdmin)
 

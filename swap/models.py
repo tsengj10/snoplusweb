@@ -7,6 +7,9 @@ from datetime import datetime, time, timedelta, timezone
 def now_utc():
   return datetime.now(timezone.utc)
 
+class Zone(models.Model):
+  name = models.CharField(max_length=40)
+
 class Resource(models.Model):
   # a resource to be swapped
   name = models.CharField(max_length=100)

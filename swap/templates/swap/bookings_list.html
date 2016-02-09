@@ -36,28 +36,17 @@ td, th { padding: 5px; }
   <td>
     <select id='res'>
       <option value=""></option>
-      {% for res in resources %}
-      <option value="{{ res.pk }}">{{ res.name }}</option>
-      {% endfor %}
     </select>
   </td>
-  <td>
-    <input id='startdate' class='dpicker' type='text'>
-  </td>
-  <td>
-    <input id='stopdate' class='dpicker' type='text'>
-  </td>
+  <td><input id='startdate' class='dpicker' type='text'></td>
+  <td><input id='stopdate' class='dpicker' type='text'></td>
+  <td></td>
 </tr>
 <tr>
-  <td>
-  <button type='button' id='requestbutton'>Request</button>
-  </td>
-  <td>
-    <input id='starttime' class='tpicker' type='text'>
-  </td>
-  <td>
-    <input id='stoptime' class='tpicker' type='text'>
-  </td>
+  <td><button type='button' id='requestbutton'>Request</button></td>
+  <td><input id='starttime' class='tpicker' type='text'></td>
+  <td><input id='stoptime' class='tpicker' type='text'></td>
+  <td><select id='tzs'></select></td>
 </table>
 
 <table class='tcentered' border='1'>
@@ -124,6 +113,20 @@ $.ajaxSetup({
 //  'csrfmiddlewaretoken':'CSRF-TOKEN-V<U+200C><U+200B>ALUE'} – 
 
 $(document).ready(function() {
+
+  // get configuration information
+  $.getJSON('{% static "json/config.json" %}', function(data) {
+    var selres = $('#res');
+    data.res.forEach(function(d,j) {
+      selres.append('<option value="' + d.pk + '">' + d.name + '</option>');
+    });
+    // set default value based on group (but may not exist)
+    var seltzs = $('#tzs');
+    data.tzs.forEach(function(d,j) {
+      seltzs.append('<option value="' + d.name + '">' + d.name + '</option>');
+    });
+    seltzs.val(data.tzdefault);
+  });
 
   // datepickers
   $('#startdate').datepicker({

@@ -76,16 +76,8 @@ def bookings(request):
       kwargs[v] = datetime.datetime.utcfromtimestamp(int(n))
   bs = Booking.objects.filter(**kwargs).order_by('begin_time')
   comments = Comment.objects.filter(time__gte=past)
-  users = User.objects.all()
-  groups = Group.objects.all()
-  approvers = Approver.objects.all()
-  resources = Resource.objects.all()
   context = { 'bookings': bs,
               'comments': comments,
-              'users': users,
-              'groups': groups,
-              'approvers': approvers,
-              'resources': resources,
             }
   return render(request, 'swap/bookings_list.html', context)
 
