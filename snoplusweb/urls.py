@@ -21,7 +21,7 @@ from swap import urls as swap_urls
 
 urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
-    url(r'^swap/', include(swap_urls)),
+    url(r'^swap/', include(swap_urls, namespace='swap')),
     url(r'^accounts/login/', 'django.contrib.auth.views.login'),
     url(r'^accounts/logout/', 'django.contrib.auth.views.logout', name='swap_logout'),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

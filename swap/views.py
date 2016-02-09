@@ -11,6 +11,9 @@ import datetime
 
 from .models import Resource, Approver, Booking, Comment
 
+# Used for logging events
+logger =  logging.getLogger(__name__)
+
 # Create your views here.
 
 class ResourceList(ListView):
@@ -23,6 +26,24 @@ def bookings(request):
   if request.method == 'POST':
     # booking request or request approval
     # then redirect to bookings list
+    s = request.body.decode('utf-8')
+    data = json.loads(s)
+    if data['m'] == 'r':
+      # request
+      logger.info('Request ' + s)
+      logger.info('  resource ' + data['r'])
+      bdt = datetime.datetime.fromtimestamp(data['b'], datetime.timezone.utc)
+      edt = datetime.datetime.fromtimestamp(data['e'], datetime.timezone.utc)
+      logger.info('  begin {0} end {1}'.format(bdt, edt))
+    elif data['m'] == 'a':
+      # approve
+      logger.info('Approve ' + s)
+    elif data['m'] == 'c':
+      # comment
+      logger.info('Comment ' + s)
+    else:
+      # unrecognized command
+      logger.error('Unrecognized post response ' + s)
     return redirect('swap:bookings')
 
   # list bookings according to query

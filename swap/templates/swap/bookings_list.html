@@ -50,6 +50,7 @@ td, th { padding: 5px; }
 </tr>
 <tr>
   <td>
+  <button type='button' id='requestbutton'>Request</button>
   </td>
   <td>
     <input id='starttime' class='tpicker' type='text'>
@@ -58,9 +59,8 @@ td, th { padding: 5px; }
     <input id='stoptime' class='tpicker' type='text'>
   </td>
 </table>
-<button type='button' id='requestbutton'>Request</button>
 
-<table border=1>
+<table class='tcentered' border='1'>
 <tr>
   <th>Approved</th>
   <th>Begin date</th>
@@ -83,25 +83,26 @@ td, th { padding: 5px; }
 {% block scripts %}
 <script>
 $.datepicker.setDefaults({
-  "dateFormat": "dd/mm/yy",
+  //"dateFormat": "dd/mm/yy",
+  "dateFormat": "dd M yy",
 });
 
 // based on http://www.timlabonne.com/2013/07/parsing-a-time-string-with-javascript/
 // understands 1pm, 1:00pm, 1:00p, 13:00.  Returns NaN if can't parse at all.
 function parseTime(timeStr, dt) {
-    if (!dt) {
-        dt = new Date();
-    }
+  if (!dt) {
+    dt = new Date();
+  }
  
-    var time = timeStr.match(/(\d+)(?::(\d\d))?\s*(p?)/i);
-    if (!time) {
-        return NaN;
-    }
-    var hours = parseInt(time[1], 10);
-    dt.setHours(hours);
-    dt.setMinutes(parseInt(time[2], 10) || 0);
-    dt.setSeconds(0, 0);
-    return dt;
+  var time = timeStr.match(/(\d+)(?::(\d\d))?\s*(p?)/i);
+  if (!time) {
+    return NaN;
+  }
+  var hours = parseInt(time[1], 10);
+  dt.setHours(hours);
+  dt.setMinutes(parseInt(time[2], 10) || 0);
+  dt.setSeconds(0, 0);
+  return dt;
 }
 
 function csrfSafeMethod(method) {
@@ -122,12 +123,41 @@ $.ajaxSetup({
 // {'username':'username','password':'password',
 //  'csrfmiddlewaretoken':'CSRF-TOKEN-V<U+200C><U+200B>ALUE'} – 
 
-
-
-
 $(document).ready(function() {
-  console.log('Ready');
-  $('.dpicker').datepicker();
+
+  // datepickers
+  $('#startdate').datepicker({
+    defaultDate: '+1w',
+    changeMonth: true,
+    numberOfMonths: 3,
+    onClose: function(selectedDate) {
+      $('#stopdate').datepicker('option', 'minDate', selectedDate);
+    }
+  });
+  $('#stopdate').datepicker({
+    defaultDate: '+1w',
+    changeMonth: true,
+    numberOfMonths: 3,
+    onClose: function(selectedDate) {
+      $('#startdate').datepicker('option', 'maxDate', selectedDate);
+    }
+  });
+
+  // buttons
+  $('#requestbutton').click(function() {
+    var bdt = $('#startdate').datepicker('getDate');
+    parseTime($('#starttime').prop('value'), bdt);
+    var edt = $('#stopdate').datepicker('getDate');
+    parseTime($('#stoptime').prop('value'), edt);
+    var reqs = { 'm': 'r',
+                 'r': $('#res').val(), 
+                 'b': bdt.getTime() / 1000,
+                 'e': edt.getTime() / 1000
+               };
+    console.log(JSON.stringify(reqs));
+    $.post('', JSON.stringify(reqs)); // reload page?
+  });
+
 });
 </script>
 {% endblock %}

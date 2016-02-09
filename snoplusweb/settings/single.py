@@ -128,7 +128,7 @@ LOGGING = {
             'level': 'ERROR',
             'propagate': True,
         },
-        'admissions.views': {
+        'swap.views': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': True,
