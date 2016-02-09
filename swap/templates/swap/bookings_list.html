@@ -14,14 +14,24 @@ Bookings list
 <script src='{% static "js/buttons.colVis.min.js" %}'></script>
 <script src='{% static "js/buttons.print.min.js" %}'></script>
 <script src='{% static "js/jquery-ui-1.11.4/jquery-ui.min.js" %}'></script>
+<script src='{% static "js/jquery-cookie-1.4.1/jquery.cookie.js" %}'></script>
 
 <style>
 input.dpicker { width: 6em }
+input.tpicker { width: 6em }
+p.centered { text-align: center; }
+table.tcentered {
+  margin-left: auto;
+  margin-right: auto;
+  border-collapse: collapse;
+  border: 1px solid black;
+}
+td, th { padding: 5px; }
 </style>
 {% endblock %}
 {% block content %}
 
-<table>
+<table class='tcentered' border='1'>
 <tr>
   <td>
     <select id='res'>
@@ -42,10 +52,10 @@ input.dpicker { width: 6em }
   <td>
   </td>
   <td>
-    <input id='starttime' type='text'>
+    <input id='starttime' class='tpicker' type='text'>
   </td>
   <td>
-    <input id='stoptime' type='text'>
+    <input id='stoptime' class='tpicker' type='text'>
   </td>
 </table>
 <button type='button' id='requestbutton'>Request</button>
@@ -72,9 +82,52 @@ input.dpicker { width: 6em }
 {% endblock %}
 {% block scripts %}
 <script>
-$(function() {
-  $('#startdate').datepicker('getDate');
-  $('#stopdate').datepicker('getDate');
+$.datepicker.setDefaults({
+  "dateFormat": "dd/mm/yy",
+});
+
+// based on http://www.timlabonne.com/2013/07/parsing-a-time-string-with-javascript/
+// understands 1pm, 1:00pm, 1:00p, 13:00.  Returns NaN if can't parse at all.
+function parseTime(timeStr, dt) {
+    if (!dt) {
+        dt = new Date();
+    }
+ 
+    var time = timeStr.match(/(\d+)(?::(\d\d))?\s*(p?)/i);
+    if (!time) {
+        return NaN;
+    }
+    var hours = parseInt(time[1], 10);
+    dt.setHours(hours);
+    dt.setMinutes(parseInt(time[2], 10) || 0);
+    dt.setSeconds(0, 0);
+    return dt;
+}
+
+function csrfSafeMethod(method) {
+    // these HTTP methods do not require CSRF protection
+    return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+}
+
+var csrftoken = $.cookie('csrftoken');
+$.ajaxSetup({
+    beforeSend: function(xhr, settings) {
+        if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
+            xhr.setRequestHeader("X-CSRFToken", csrftoken);
+        }
+    }
+});
+//"csrfmiddlewaretoken" is a key in your posted data,for example,
+//when you need to ajax login,your posted data may like this:
+// {'username':'username','password':'password',
+//  'csrfmiddlewaretoken':'CSRF-TOKEN-V<U+200C><U+200B>ALUE'} – 
+
+
+
+
+$(document).ready(function() {
+  console.log('Ready');
+  $('.dpicker').datepicker();
 });
 </script>
 {% endblock %}

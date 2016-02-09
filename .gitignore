@@ -2,6 +2,6 @@
 **.pdf
 **.pyc
 **.sqlite3
-static/**
+**/static/**
 swap/migrations/**
 swap/fixtures/**
