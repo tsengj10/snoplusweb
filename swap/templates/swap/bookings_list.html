@@ -115,7 +115,8 @@ $.ajaxSetup({
 $(document).ready(function() {
 
   // get configuration information
-  $.getJSON('{% static "json/config.json" %}', function(data) {
+  $.getJSON('{% static "json/config.json" %}', function(indata) {
+    data = indata.data;
     var selres = $('#res');
     data.res.forEach(function(d,j) {
       selres.append('<option value="' + d.pk + '">' + d.name + '</option>');
@@ -123,7 +124,7 @@ $(document).ready(function() {
     // set default value based on group (but may not exist)
     var seltzs = $('#tzs');
     data.tzs.forEach(function(d,j) {
-      seltzs.append('<option value="' + d.name + '">' + d.name + '</option>');
+      seltzs.append('<option value="' + d + '">' + d + '</option>');
     });
     seltzs.val(data.tzdefault);
   });

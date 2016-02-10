@@ -9,7 +9,7 @@ import json
 import logging
 import datetime
 
-from .models import Resource, Approver, Booking, Comment
+from .models import Resource, Approver, Booking, Comment, Zone
 
 # Used for logging events
 logger =  logging.getLogger(__name__)
@@ -32,15 +32,57 @@ def bookings(request):
       # request
       logger.info('Request ' + s)
       logger.info('  resource ' + data['r'])
-      bdt = datetime.datetime.fromtimestamp(data['b'], datetime.timezone.utc)
-      edt = datetime.datetime.fromtimestamp(data['e'], datetime.timezone.utc)
-      logger.info('  begin {0} end {1}'.format(bdt, edt))
+      #bdt = datetime.datetime.fromtimestamp(data['b'], datetime.timezone.utc)
+      #edt = datetime.datetime.fromtimestamp(data['e'], datetime.timezone.utc)
+      #logger.info('  begin {0} end {1}'.format(bdt, edt))
+      ngs = request.user.groups.count()
+      if ngs >= 1:
+        rg = request.user.groups.first()
+      else:
+        rg = None
+        logger.error('User {0} does not have a group'.format(request.user))
+        return redirect('swap:bookings')
+      ri = int(data['r'])
+      rr = get_object_or_404(Resource, pk=ri)
+      logger.info('resource {0}'.format(rr))
+      logger.info('  available {0}'.format(rr.available))
+      if not rr.available:
+        logger.error('Resource {0} not currently available'.format(rr))
+        return redirect('swap:bookings')
+      logger.info('  b {0}'.format(data['b']))
+      if data['b'] > 0:
+        bdt = datetime.datetime.fromtimestamp(data['b'], datetime.timezone.utc)
+        logger.info('  begin time {0}'.format(bdt))
+      else:
+        logger.error('Beginning time not specified')
+        return redirect('swap:bookings')
+      logger.info('  e {0}'.format(data['e']))
+      if data['e'] > 0:
+        edt = datetime.datetime.fromtimestamp(data['e'], datetime.timezone.utc)
+      else:
+        logger.error('Ending time not specified')
+        return redirect('swap:bookings')
+      logger.info('about to make booking')
+      b = Booking(user=request.user, group=rg, resource=rr,
+                  begin_time=bdt, end_time=edt)
+      b.save()
+
+    elif data['m'] == 'x':
+      # cancel booking
+      logger.info('Delete ' + s)
+
+    elif data['m'] == 'e':
+      # edit booking
+      logger.info('Edit ' + s)
+
     elif data['m'] == 'a':
       # approve
       logger.info('Approve ' + s)
+
     elif data['m'] == 'c':
       # comment
       logger.info('Comment ' + s)
+
     else:
       # unrecognized command
       logger.error('Unrecognized post response ' + s)

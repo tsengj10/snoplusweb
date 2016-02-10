@@ -10,6 +10,9 @@ def now_utc():
 class Zone(models.Model):
   name = models.CharField(max_length=40)
 
+  def __str__(self):
+    return self.name
+
 class Resource(models.Model):
   # a resource to be swapped
   name = models.CharField(max_length=100)
@@ -17,6 +20,7 @@ class Resource(models.Model):
   group = models.ForeignKey('auth.Group')
   default_begin_time = models.TimeField(default=time(14,0)) # 2pm
   default_end_time = models.TimeField(default=time(12,0)) # 12 noon
+  default_zone = models.ForeignKey('Zone', null=True, default=None)
   available = models.BooleanField(default=True)
   advance_period = models.DurationField(default=timedelta(90)) # 90 days
   # history fields:  when this resource started/stopped taking bookings

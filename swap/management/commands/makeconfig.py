@@ -14,19 +14,24 @@ class Command(BaseCommand):
   def handle(self, *args, **options):
     filename = options['filename']
 
-    d = { "tzdefault": settings.TIME_ZONE,
-          "tzs": [],
+    d = {
+          "tzs": [ settings.TIME_ZONE ],
           "res": [],
           "us": [],
           "gs": [],
           "aps": [],
         }
     for n in Zone.objects.all():
-      d["tzs"].append({ "name": n.name })
+      if n.name not in d["tzs"]:
+        d["tzs"].append(n.name)
     for r in Resource.objects.all():
-      d["res"].append({ "pk": r.pk, "name": r.name })
+      d["res"].append({ "pk": r.pk, "name": r.name,
+                        "dbt": r.default_begin_time.isoformat(),
+                        "det": r.default_end_time.isoformat(),
+                        "dz" : r.default_zone.name })
     for u in User.objects.all():
-      d["us"].append({ "pk": u.pk, "name": u.username })
+      gs = u.groups.first()
+      d["us"].append({ "pk": u.pk, "name": u.username, "g": gs.name })
     for g in Group.objects.all():
       d["gs"].append({ "pk": g.pk, "name": g.name })
     for a in Approver.objects.all():
