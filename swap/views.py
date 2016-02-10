@@ -5,9 +5,11 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.models import User, Group
 from django.core.urlresolvers import reverse
 from django.http import JsonResponse
+from django.utils.timezone import utc, localtime, now
 import json
 import logging
 import datetime
+from pytz import timezone
 
 from .models import Resource, Approver, Booking, Comment, Zone
 
@@ -23,6 +25,7 @@ class ResourceList(ListView):
 
 @login_required
 def bookings(request):
+  messages = []
   if request.method == 'POST':
     # booking request or request approval
     # then redirect to bookings list
@@ -30,42 +33,42 @@ def bookings(request):
     data = json.loads(s)
     if data['m'] == 'r':
       # request
-      logger.info('Request ' + s)
-      logger.info('  resource ' + data['r'])
-      #bdt = datetime.datetime.fromtimestamp(data['b'], datetime.timezone.utc)
-      #edt = datetime.datetime.fromtimestamp(data['e'], datetime.timezone.utc)
-      #logger.info('  begin {0} end {1}'.format(bdt, edt))
       ngs = request.user.groups.count()
       if ngs >= 1:
         rg = request.user.groups.first()
       else:
         rg = None
-        logger.error('User {0} does not have a group'.format(request.user))
-        return redirect('swap:bookings')
+        messages.append('User {0} does not have a group'.format(request.user))
       ri = int(data['r'])
-      rr = get_object_or_404(Resource, pk=ri)
-      logger.info('resource {0}'.format(rr))
-      logger.info('  available {0}'.format(rr.available))
-      if not rr.available:
-        logger.error('Resource {0} not currently available'.format(rr))
-        return redirect('swap:bookings')
-      logger.info('  b {0}'.format(data['b']))
-      if data['b'] > 0:
-        bdt = datetime.datetime.fromtimestamp(data['b'], datetime.timezone.utc)
-        logger.info('  begin time {0}'.format(bdt))
-      else:
-        logger.error('Beginning time not specified')
-        return redirect('swap:bookings')
-      logger.info('  e {0}'.format(data['e']))
-      if data['e'] > 0:
-        edt = datetime.datetime.fromtimestamp(data['e'], datetime.timezone.utc)
-      else:
-        logger.error('Ending time not specified')
-        return redirect('swap:bookings')
-      logger.info('about to make booking')
-      b = Booking(user=request.user, group=rg, resource=rr,
-                  begin_time=bdt, end_time=edt)
-      b.save()
+      try:
+        rr = Resource.objects.get(pk=ri)
+        if not rr.available:
+          messages.append('Resource {0} not currently available'.format(rr))
+      except ObjectDoesNotExist:
+        messages.append('Illegal resource id {0} (internal error)'.format(data['r']))
+      #bdt = datetime.datetime.fromtimestamp(data['b'], datetime.timezone.utc)
+      #edt = datetime.datetime.fromtimestamp(data['e'], datetime.timezone.utc)
+      td = data['b']
+      logger.info('{0}'.format(td))
+      bdt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
+      logger.info('{0}'.format(bdt))
+      bdt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
+      td = data['e']
+      edt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
+      logger.info('{0}'.format(edt))
+      logger.info('{0}'.format(data['z']))
+      zone = pytz.timezone(data['z'])
+# problem
+      logger.info('before begin {0} end {1}'.format(bdt, edt))
+      bdtu = localtime(bdt, zone)
+      edtu = localtime(edt, zone)
+      logger.info('begin {0} end {1}'.format(bdtu, edtu))
+
+      if len(messages) == 0:
+        logger.info('book')
+        b = Booking(user=request.user, group=rg, resource=rr,
+                    begin_time=bdtu, end_time=edtu)
+        b.save()
 
     elif data['m'] == 'x':
       # cancel booking
@@ -90,7 +93,7 @@ def bookings(request):
     else:
       # unrecognized command
       logger.error('Unrecognized post response ' + s)
-    return redirect('swap:bookings')
+      return redirect('swap:bookings')
 
   # list bookings according to query
   # by default, go back 1 year, forward 90 days
@@ -124,6 +127,7 @@ def bookings(request):
   comments = Comment.objects.filter(time__gte=past)
   context = { 'bookings': bs,
               'comments': comments,
+              'messages': messages,
             }
   return render(request, 'swap/bookings_list.html', context)
 

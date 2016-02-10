@@ -27,9 +27,17 @@ table.tcentered {
   border: 1px solid black;
 }
 td, th { padding: 5px; }
+ul#messages { color: red; }
 </style>
 {% endblock %}
 {% block content %}
+
+<ul id="messages">
+{% for message in messages %}
+  <li>{{ message }}</li>
+{% empty %}
+{% endfor %}
+</ul>
 
 <table class='tcentered' border='1'>
 <tr>
@@ -158,8 +166,10 @@ $(document).ready(function() {
     parseTime($('#stoptime').prop('value'), edt);
     var reqs = { 'm': 'r',
                  'r': $('#res').val(), 
-                 'b': bdt.getTime() / 1000,
-                 'e': edt.getTime() / 1000,
+                 'b': [ bdt.getFullYear(), bdt.getMonth()+1, bdt.getDate(),
+                        bdt.getHours(), bdt.getMinutes() ],
+                 'e': [ edt.getFullYear(), edt.getMonth()+1, edt.getDate(),
+                        edt.getHours(), edt.getMinutes() ],
                  'z': $('#tzs').val()
                };
     console.log(JSON.stringify(reqs));
