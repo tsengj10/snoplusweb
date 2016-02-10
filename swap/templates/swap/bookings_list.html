@@ -33,20 +33,16 @@ td, th { padding: 5px; }
 
 <table class='tcentered' border='1'>
 <tr>
-  <td>
-    <select id='res'>
-      <option value=""></option>
-    </select>
-  </td>
+  <td><select id='res'><option value=""></option></select></td>
   <td><input id='startdate' class='dpicker' type='text'></td>
   <td><input id='stopdate' class='dpicker' type='text'></td>
   <td></td>
 </tr>
 <tr>
-  <td><button type='button' id='requestbutton'>Request</button></td>
+  <td><select id='tzs'><option value=""></option></select></td>
   <td><input id='starttime' class='tpicker' type='text'></td>
   <td><input id='stoptime' class='tpicker' type='text'></td>
-  <td><select id='tzs'></select></td>
+  <td><button type='button' id='requestbutton'>Request</button></td>
 </table>
 
 <table class='tcentered' border='1'>
@@ -112,6 +108,10 @@ $.ajaxSetup({
 // {'username':'username','password':'password',
 //  'csrfmiddlewaretoken':'CSRF-TOKEN-V<U+200C><U+200B>ALUE'} – 
 
+var old_default_begin = "";
+var old_default_end = "";
+var old_default_zone = "";
+
 $(document).ready(function() {
 
   // get configuration information
@@ -126,7 +126,10 @@ $(document).ready(function() {
     data.tzs.forEach(function(d,j) {
       seltzs.append('<option value="' + d + '">' + d + '</option>');
     });
-    seltzs.val(data.tzdefault);
+    //seltzs.val(data.tzs[0]);
+    $('#starttime').prop('value', old_default_begin);
+    $('#stoptime').prop('value', old_default_end);
+    $('#tzs').val(old_default_zone);
   });
 
   // datepickers
@@ -156,10 +159,43 @@ $(document).ready(function() {
     var reqs = { 'm': 'r',
                  'r': $('#res').val(), 
                  'b': bdt.getTime() / 1000,
-                 'e': edt.getTime() / 1000
+                 'e': edt.getTime() / 1000,
+                 'z': $('#tzs').val()
                };
     console.log(JSON.stringify(reqs));
     $.post('', JSON.stringify(reqs)); // reload page?
+  });
+  //$('#tzs').select(function() {
+  //});
+  $('#res').change(function() {
+    var r = $('#res').val();
+    //console.log(r);
+    var rpk = 0;
+    for (var i = 0; i < data.res.length; ++i) {
+      if (r == data.res[i].pk) {
+        rpk = i;
+        break;
+      }
+    }
+    //console.log(rpk);
+    //console.log(data.res[rpk].det);
+    var v = $('#starttime').prop('value');
+    if (v == old_default_begin || v == "") {
+      old_default_begin = data.res[rpk].dbt;
+      $('#starttime').prop('value', old_default_begin);
+    }
+    v = $('#stoptime').prop('value');
+    if (v == old_default_end || v == "") {
+      old_default_end = data.res[rpk].det;
+      $('#stoptime').prop('value', old_default_end);
+    }
+    v = $('#tzs').prop('value');
+    if (v == old_default_zone || v == "") {
+      old_default_zone = data.res[rpk].dz;
+      $('#tzs').prop('value', old_default_zone);
+    }
+    //console.log(old_default_end);
+    //console.log(old_default_zone);
   });
 
 });

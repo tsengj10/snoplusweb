@@ -79,6 +79,10 @@ def bookings(request):
       # approve
       logger.info('Approve ' + s)
 
+    elif data['m'] == 'v':
+      # revoke approval
+      logger.info('Revoke ' + s)
+
     elif data['m'] == 'c':
       # comment
       logger.info('Comment ' + s)
