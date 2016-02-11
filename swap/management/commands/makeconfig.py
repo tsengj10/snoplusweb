@@ -31,7 +31,7 @@ class Command(BaseCommand):
                         "dz" : r.default_zone.name })
     for u in User.objects.all():
       gs = u.groups.first()
-      d["us"].append({ "pk": u.pk, "name": u.username, "g": gs.name })
+      d["us"].append({ "pk": u.pk, "name": u.username, "g": gs.pk })
     for g in Group.objects.all():
       d["gs"].append({ "pk": g.pk, "name": g.name })
     for a in Approver.objects.all():

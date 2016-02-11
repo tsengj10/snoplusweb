@@ -28,17 +28,12 @@ table.tcentered {
   border: 1px solid black;
 }
 td, th { padding: 5px; }
-ul#messages { color: red; }
+p#messages { color: red; }
 </style>
 {% endblock %}
 {% block content %}
 
-<ul id="messages">
-{% for message in messages %}
-  <li>{{ message }}</li>
-{% empty %}
-{% endfor %}
-</ul>
+<p id="messages"></p>
 
 <table class='tcentered' border='1'>
 <tr>
@@ -54,25 +49,25 @@ ul#messages { color: red; }
   <td><button type='button' id='requestbutton'>Request</button></td>
 </table>
 
-<table id='bookings' class='tcentered' border='1'>
-<tr>
-  <th>Approved</th>
-  <th>Begin date</th>
-  <th>End date</th>
-  <th>Resource</th>
-  <th>Name</th>
-</tr>
-{% localtime on %}
-{% for booking in bookings %}
-<tr>
-  <td>{% if booking.approval != None %}{{ booking.approval.user }}{% else %}No{% endif %}
-  <td>{{ booking.begin_time|date:"r" }}</td>
-  <td>{{ booking.end_time|date:"r" }}</td>
-  <td>{{ booking.resource }}</td>
-  <td>{{ booking.user }}</td>
-</tr>
-{% endfor %}
-{% endlocaltime %}
+<table id='bookings' class='tcentered display' border='1'>
+<thead>
+  <tr>
+    <th>Approved</th>
+    <th>Begin date</th>
+    <th>End date</th>
+    <th>Resource</th>
+    <th>Name</th>
+  </tr>
+</thead>
+<tfoot>
+  <tr>
+    <th>Approved</th>
+    <th>Begin date</th>
+    <th>End date</th>
+    <th>Resource</th>
+    <th>Name</th>
+  </tr>
+</tfoot>
 </table>
 
 {% endblock %}
@@ -123,6 +118,12 @@ var old_default_begin = "";
 var old_default_end = "";
 var old_default_zone = "";
 
+// configuration information
+var resources = [];
+var users = [];
+var groups = [];
+var approvers = [];
+
 $(document).ready(function() {
 
   // get configuration information
@@ -131,6 +132,7 @@ $(document).ready(function() {
     var selres = $('#res');
     data.res.forEach(function(d,j) {
       selres.append('<option value="' + d.pk + '">' + d.name + '</option>');
+      resources[d.pk] = d.name;
     });
     // set default value based on group (but may not exist)
     var seltzs = $('#tzs');
@@ -141,6 +143,9 @@ $(document).ready(function() {
     $('#starttime').prop('value', old_default_begin);
     $('#stoptime').prop('value', old_default_end);
     $('#tzs').val(old_default_zone);
+    data.us.forEach(function(d,j) { users[d.pk] = { 'n': d.name, 'g': d.g } });
+    data.gs.forEach(function(d,j) { groups[d.pk] = d.name });
+    data.aps.forEach(function(d,j) { approvers.push({ 'u': d.u, 'r': d.r }) });
   });
 
   // datepickers
@@ -175,9 +180,21 @@ $(document).ready(function() {
                         edt.getHours(), edt.getMinutes() ],
                  'z': $('#tzs').val()
                };
-    console.log(JSON.stringify(reqs));
+    //console.log(JSON.stringify(reqs));
     //var qstring = window.location.href.slice(window.location.href.indexOf('?'));
-    $.post(window.location.href, JSON.stringify(reqs)); // reload page?
+    $.post('', JSON.stringify(reqs), function(data) {
+      var msg = data.messages;
+      var t = [];
+      if (msg.length > 0) {
+        t.push('<ul>');
+        for (var i = 0; i < msg.length; ++i) t.push('<li>' + msg[i]);
+        t.push('</ul>');
+        $('#messages').html(t.join(''));
+      } else {
+        $('#messages').html('');
+      }
+    }, 'json');
+    $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
   });
   //$('#tzs').select(function() {
   //});
@@ -207,6 +224,55 @@ $(document).ready(function() {
     }
   });
 
+  $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
+
 });
+
+function fill_bookings(data) {
+  console.log('fill_bookings()');
+  console.log(data);
+  var spec = {
+    'data': data.b,
+    'columns': [
+      { 'data': 'a', 'render': render_approval },
+      { 'data': 'b' },
+      { 'data': 'e' },
+      { 'data': 'r', 'render': render_resource },
+      { 'data': 'n', 'render': render_user }
+    ],
+  };
+  $('#bookings').DataTable(spec);
+}
+
+function render_approval(data, type, row, meta) {
+  if (type == "display") {
+    console.log(data);
+    if (data == 0) {
+      return "No";
+    } else {
+      return users[data].n;
+    }
+  } else {
+    return data;
+  }
+}
+
+function render_resource(data, type, row, meta) {
+  if (type == "display") {
+    console.log(data);
+    return resources[data];
+  } else {
+    return data;
+  }
+}
+
+function render_user(data, type, row, meta) {
+  if (type == "display") {
+    console.log(data);
+    return users[data].n;
+  } else {
+    return data;
+  }
+}
 </script>
 {% endblock %}

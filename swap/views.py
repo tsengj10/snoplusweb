@@ -25,16 +25,16 @@ class ResourceList(ListView):
 
 @login_required
 def bookings(request):
-  messages = []
   if request.method == 'POST':
     # booking request or request approval
     # then redirect to bookings list
+    messages = []
     qs = request.POST
     s = request.body.decode('utf-8')
     data = json.loads(s)
     if data['m'] == 'r':
       # request
-      messages.extend(request_resource(request.user, data))
+      messages = request_resource(request.user, data)
 
     elif data['m'] == 'x':
       # cancel booking
@@ -58,12 +58,25 @@ def bookings(request):
 
     else:
       # unrecognized command
-      messages.append('Unrecognized post response ' + s)
+      messages = [ 'Unrecognized post response ' + s ]
       #return redirect('swap:bookings')
+    return JsonResponse({ 'messages': messages })
 
   else:
-    qs = request.GET
+    qd = request.GET
+    qs = {}
+    for k in [ 'u', 'c', 'o', 'a', 'r', 'b0', 'b1', 'e0', 'e1' ]:
+      n = qd.get(k)
+      if n != None and n.isnumeric():
+        qs[k] = n
+    context = { 'query': qs }
+  return render(request, 'swap/bookings_list.html', context)
 
+# booking list in json form
+
+@login_required
+def bookings_json(request):
+  qd = request.GET
   # list bookings according to query
   # by default, go back 1 year, forward 90 days
   now = datetime.datetime.now(datetime.timezone.utc)
@@ -80,7 +93,7 @@ def bookings(request):
                ('a', 'approval__user__pk'), # approver
                ('r', 'resource__pk'), # resource id
              ]:
-    n = qs.get(k)
+    n = qd.get(k)
     if n != None and n.isnumeric():
       kwargs[v] = n
   for k,v in [ ('b0', 'begin_time__gte'), # minimum begin_time
@@ -88,16 +101,31 @@ def bookings(request):
                ('e0', 'end_time__gte'), # minimum end_time
                ('e1', 'end_time__lte'), # maximum end_time
              ]:
-    n = qs.get(k)
+    n = qd.get(k)
     if n != None and n.isnumeric():
       kwargs[v] = datetime.datetime.utcfromtimestamp(int(n))
-  bs = Booking.objects.filter(**kwargs).order_by('begin_time')
-  comments = Comment.objects.filter(time__gte=past)
-  context = { 'bookings': bs,
-              'comments': comments,
-              'messages': messages,
-            }
-  return render(request, 'swap/bookings_list.html', context)
+  jb = []
+  for b in Booking.objects.filter(**kwargs).order_by('begin_time'):
+    z = pytz.timezone(b.resource.default_zone.name)
+    jb.append({ 'u': b.user.pk,
+                'g': b.group.pk,
+                'r': b.resource.pk,
+                'a': b.approval.user.pk if b.approval != None else 0,
+                'b': localtime(b.begin_time, z),
+                'e': localtime(b.end_time, z),
+                'tr': localtime(b.request_time, z),
+                'tm': localtime(b.modification_time, z),
+              })
+  jc = []
+  for c in Comment.objects.filter(time__gte=past):
+    jc.append({ 'c': c.commenter.pk,
+                'b': c.booking.pk,
+                't': localtime(c.time),
+                's': c.text,
+              })
+  logger.info('Bookings response = {0}'.format(jb))
+  logger.info('Comments response = {0}'.format(jc))
+  return JsonResponse({ 'b': jb, 'c': jc })
 
 # request/approve bookings
 
