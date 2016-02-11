@@ -5,11 +5,11 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.models import User, Group
 from django.core.urlresolvers import reverse
 from django.http import JsonResponse
-from django.utils.timezone import utc, localtime, now
+from django.utils.timezone import utc, localtime, now, make_aware
 import json
 import logging
 import datetime
-from pytz import timezone
+import pytz
 
 from .models import Resource, Approver, Booking, Comment, Zone
 
@@ -29,46 +29,12 @@ def bookings(request):
   if request.method == 'POST':
     # booking request or request approval
     # then redirect to bookings list
+    qs = request.POST
     s = request.body.decode('utf-8')
     data = json.loads(s)
     if data['m'] == 'r':
       # request
-      ngs = request.user.groups.count()
-      if ngs >= 1:
-        rg = request.user.groups.first()
-      else:
-        rg = None
-        messages.append('User {0} does not have a group'.format(request.user))
-      ri = int(data['r'])
-      try:
-        rr = Resource.objects.get(pk=ri)
-        if not rr.available:
-          messages.append('Resource {0} not currently available'.format(rr))
-      except ObjectDoesNotExist:
-        messages.append('Illegal resource id {0} (internal error)'.format(data['r']))
-      #bdt = datetime.datetime.fromtimestamp(data['b'], datetime.timezone.utc)
-      #edt = datetime.datetime.fromtimestamp(data['e'], datetime.timezone.utc)
-      td = data['b']
-      logger.info('{0}'.format(td))
-      bdt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
-      logger.info('{0}'.format(bdt))
-      bdt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
-      td = data['e']
-      edt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
-      logger.info('{0}'.format(edt))
-      logger.info('{0}'.format(data['z']))
-      zone = pytz.timezone(data['z'])
-# problem
-      logger.info('before begin {0} end {1}'.format(bdt, edt))
-      bdtu = localtime(bdt, zone)
-      edtu = localtime(edt, zone)
-      logger.info('begin {0} end {1}'.format(bdtu, edtu))
-
-      if len(messages) == 0:
-        logger.info('book')
-        b = Booking(user=request.user, group=rg, resource=rr,
-                    begin_time=bdtu, end_time=edtu)
-        b.save()
+      messages.extend(request_resource(request.user, data))
 
     elif data['m'] == 'x':
       # cancel booking
@@ -92,12 +58,14 @@ def bookings(request):
 
     else:
       # unrecognized command
-      logger.error('Unrecognized post response ' + s)
-      return redirect('swap:bookings')
+      messages.append('Unrecognized post response ' + s)
+      #return redirect('swap:bookings')
+
+  else:
+    qs = request.GET
 
   # list bookings according to query
   # by default, go back 1 year, forward 90 days
-  qs = request.GET
   now = datetime.datetime.now(datetime.timezone.utc)
   #past = (now + datetime.timedelta(-90)).isoformat(' ')
   #future = (now + datetime.timedelta(90)).isoformat(' ')
@@ -133,8 +101,45 @@ def bookings(request):
 
 # request/approve bookings
 
-def request_resource(request, resource):
-  pass
+def request_resource(user, data):
+  messages = []
+  ngs = user.groups.count()
+  if ngs >= 1:
+    rg = user.groups.first()
+  else:
+    rg = None
+    messages.append('User {0} does not have a group'.format(user))
+  ri = int(data['r'])
+  try:
+    rr = Resource.objects.get(pk=ri)
+    if not rr.available:
+      messages.append('Resource {0} not currently available'.format(rr))
+  except ObjectDoesNotExist:
+    messages.append('Illegal resource id {0} (internal error)'.format(data['r']))
+
+  if data['z'] == "":
+    zone = pytz.timezone(rr.default_zone.name)
+  else:
+    zone = pytz.timezone(data['z'])
+  td = data['b']
+  if td == "" or len(td) < 5:
+    messages.append('Begin time invalid')
+  else:
+    bdt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
+    bdtu = make_aware(bdt, zone)
+  td = data['e']
+  if td == "" or len(td) < 5:
+    messages.append('End time invalid')
+  else:
+    edt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
+    edtu = make_aware(edt, zone)
+
+  if len(messages) == 0:
+    b = Booking(user=user, group=rg, resource=rr,
+                begin_time=bdtu, end_time=edtu)
+    b.save()
+
+  return messages
 
 def approve_request(request, req):
   pass

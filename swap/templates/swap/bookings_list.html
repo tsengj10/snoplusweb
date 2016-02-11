@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load staticfiles %}
+{% load tz %}
 {% block title %}
 Bookings list
 {% endblock %}
@@ -53,7 +54,7 @@ ul#messages { color: red; }
   <td><button type='button' id='requestbutton'>Request</button></td>
 </table>
 
-<table class='tcentered' border='1'>
+<table id='bookings' class='tcentered' border='1'>
 <tr>
   <th>Approved</th>
   <th>Begin date</th>
@@ -61,15 +62,17 @@ ul#messages { color: red; }
   <th>Resource</th>
   <th>Name</th>
 </tr>
+{% localtime on %}
 {% for booking in bookings %}
 <tr>
   <td>{% if booking.approval != None %}{{ booking.approval.user }}{% else %}No{% endif %}
-  <td>{{ booking.begin_time }}</td>
-  <td>{{ booking.end_time }}</td>
+  <td>{{ booking.begin_time|date:"r" }}</td>
+  <td>{{ booking.end_time|date:"r" }}</td>
   <td>{{ booking.resource }}</td>
   <td>{{ booking.user }}</td>
 </tr>
 {% endfor %}
+{% endlocaltime %}
 </table>
 
 {% endblock %}
@@ -173,13 +176,13 @@ $(document).ready(function() {
                  'z': $('#tzs').val()
                };
     console.log(JSON.stringify(reqs));
-    $.post('', JSON.stringify(reqs)); // reload page?
+    //var qstring = window.location.href.slice(window.location.href.indexOf('?'));
+    $.post(window.location.href, JSON.stringify(reqs)); // reload page?
   });
   //$('#tzs').select(function() {
   //});
   $('#res').change(function() {
     var r = $('#res').val();
-    //console.log(r);
     var rpk = 0;
     for (var i = 0; i < data.res.length; ++i) {
       if (r == data.res[i].pk) {
@@ -187,8 +190,6 @@ $(document).ready(function() {
         break;
       }
     }
-    //console.log(rpk);
-    //console.log(data.res[rpk].det);
     var v = $('#starttime').prop('value');
     if (v == old_default_begin || v == "") {
       old_default_begin = data.res[rpk].dbt;
@@ -204,8 +205,6 @@ $(document).ready(function() {
       old_default_zone = data.res[rpk].dz;
       $('#tzs').prop('value', old_default_zone);
     }
-    //console.log(old_default_end);
-    //console.log(old_default_zone);
   });
 
 });
