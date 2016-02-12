@@ -116,6 +116,8 @@ def bookings_json(request):
                 'tr': localtime(b.request_time, z),
                 'tm': localtime(b.modification_time, z),
               })
+  # probably want to change above times to local time,
+  # as javascript seems to want to take out time offset
   jc = []
   for c in Comment.objects.filter(time__gte=past):
     jc.append({ 'c': c.commenter.pk,

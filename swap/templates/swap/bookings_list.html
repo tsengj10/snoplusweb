@@ -6,16 +6,23 @@ Bookings list
 {% endblock %}
 {% block head %}
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
 <link rel="stylesheet" href='{% static "js/jquery.dataTables.min.css" %}'>
 <link rel="stylesheet" href='{% static "js/buttons.dataTables.min.css" %}'>
+-->
 <link rel="stylesheet" href='{% static "js/jquery-ui-1.11.4/jquery-ui.min.css" %}'>
+<link rel="stylesheet" href='{% static "js/jquery.multiselect.css" %}'>
 <script src='{% static "js/jquery-1.12.0.min.js" %}'></script>
+<!--
 <script src='{% static "js/jquery.dataTables.min.js" %}'></script>
 <script src='{% static "js/dataTables.buttons.min.js" %}'></script>
 <script src='{% static "js/buttons.colVis.min.js" %}'></script>
 <script src='{% static "js/buttons.print.min.js" %}'></script>
+-->
 <script src='{% static "js/jquery-ui-1.11.4/jquery-ui.min.js" %}'></script>
 <script src='{% static "js/jquery-cookie-1.4.1/jquery.cookie.js" %}'></script>
+<script src='{% static "js/jquery.multiselect.min.js" %}'></script>
+<script src='{% static "js/date.js" %}'></script>
 
 <style>
 input.dpicker { width: 6em }
@@ -29,6 +36,19 @@ table.tcentered {
 }
 td, th { padding: 5px; }
 p#messages { color: red; }
+
+td.busy {
+  background-color: Green;
+  background-image: none;
+  color: Green;
+  font-weight: bold;
+}
+.conflict {
+  background-color: Red;
+  background-image: none;
+  color: Red;
+  font-weight: bold;
+}
 </style>
 {% endblock %}
 {% block content %}
@@ -73,9 +93,69 @@ p#messages { color: red; }
 {% endblock %}
 {% block scripts %}
 <script>
+
+// configuration information
+var resources = [];
+var users = [];
+var groups = [];
+var approvers = [];
+
+// to add, busy_days[new Date()] = tooltip
+var busy_days = {};
+var conflict_days = {};
+
+function update_days(data) {
+  busy_days = {};
+  conflict_days = {};
+  data.b.forEach(function(d,j) {
+    console.log(d);
+    var dt0 = new Date(d.b);
+    dt0.clearTime();
+    //var d0 = new Date(dt0.getFullYear(), dt0.getMonth(), dt0.getDate());
+    var dt1 = new Date(d.e);
+    dt1.clearTime();
+    //var d1 = new Date(dt1.getFullYear(), dt1.getMonth(), dt1.getDate());
+    while (!dt0.equals(dt1)) {
+      console.log(dt0);
+      var b = busy_days[dt0];
+      if (b) {
+        console.log(b);
+        //busy_days[dt0] += " " + users[d.u].n;
+        busy_days[dt0] += " " + d.u;
+      } else {
+        //console.log("new day");
+        //console.log(d.u);
+        //console.log(users);
+        //console.log(users[d.u]);
+        //busy_days[dt0] = users[d.u].n;
+        busy_days[dt0] = "" + d.u;
+      }
+      // TODO conflict detection:  same resource on same day
+      dt0.addDays(1);
+    }
+  });
+}
+
 $.datepicker.setDefaults({
   //"dateFormat": "dd/mm/yy",
   "dateFormat": "dd M yy",
+  "beforeShowDay": function(date) {
+    var conflict = conflict_days[date];
+    if (conflict) {
+      return [ true, "conflict", conflict ];
+    } else {
+      console.log("beforeShowDay called");
+      console.log(date);
+      var busy = busy_days[date];
+      console.log(busy);
+      if (busy) {
+        console.log("add class busy");
+        return [ true, "busy", busy ];
+      } else {
+        return [ true, '', '' ];
+      }
+    }
+  }
 });
 
 // based on http://www.timlabonne.com/2013/07/parsing-a-time-string-with-javascript/
@@ -117,12 +197,6 @@ $.ajaxSetup({
 var old_default_begin = "";
 var old_default_end = "";
 var old_default_zone = "";
-
-// configuration information
-var resources = [];
-var users = [];
-var groups = [];
-var approvers = [];
 
 $(document).ready(function() {
 
@@ -231,48 +305,8 @@ $(document).ready(function() {
 function fill_bookings(data) {
   console.log('fill_bookings()');
   console.log(data);
-  var spec = {
-    'data': data.b,
-    'columns': [
-      { 'data': 'a', 'render': render_approval },
-      { 'data': 'b' },
-      { 'data': 'e' },
-      { 'data': 'r', 'render': render_resource },
-      { 'data': 'n', 'render': render_user }
-    ],
-  };
-  $('#bookings').DataTable(spec);
+  update_days(data);
 }
 
-function render_approval(data, type, row, meta) {
-  if (type == "display") {
-    console.log(data);
-    if (data == 0) {
-      return "No";
-    } else {
-      return users[data].n;
-    }
-  } else {
-    return data;
-  }
-}
-
-function render_resource(data, type, row, meta) {
-  if (type == "display") {
-    console.log(data);
-    return resources[data];
-  } else {
-    return data;
-  }
-}
-
-function render_user(data, type, row, meta) {
-  if (type == "display") {
-    console.log(data);
-    return users[data].n;
-  } else {
-    return data;
-  }
-}
 </script>
 {% endblock %}
