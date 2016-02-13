@@ -37,24 +37,28 @@ table.tcentered {
 td, th { padding: 5px; }
 p#messages { color: red; }
 
-td.busy {
-  background-color: Green;
-  background-image: none;
-  color: Green;
+.busy a {
+  background-color: Green !important;
+  background-image: none !important;
+  color: White !important;
   font-weight: bold;
 }
-.conflict {
-  background-color: Red;
-  background-image: none;
-  color: Red;
+.conflict a {
+  background-color: Red !important;
+  background-image: none !important;
+  color: White !important;
   font-weight: bold;
 }
 </style>
 {% endblock %}
 {% block content %}
 
-<p id="messages"></p>
+<p>
+<select id='select_resource' multiple='multiple'></select>
+<select id='select_user' multiple='multiple'></select>
+</p>
 
+<p>
 <table class='tcentered' border='1'>
 <tr>
   <td><select id='res'><option value=""></option></select></td>
@@ -68,7 +72,13 @@ td.busy {
   <td><input id='stoptime' class='tpicker' type='text'></td>
   <td><button type='button' id='requestbutton'>Request</button></td>
 </table>
+</p>
 
+<p id="messages"></p>
+
+<p id='details'></p>
+
+<p>
 <table id='bookings' class='tcentered display' border='1'>
 <thead>
   <tr>
@@ -89,6 +99,7 @@ td.busy {
   </tr>
 </tfoot>
 </table>
+</p>
 
 {% endblock %}
 {% block scripts %}
@@ -105,34 +116,39 @@ var busy_days = {};
 var conflict_days = {};
 
 function update_days(data) {
-  busy_days = {};
-  conflict_days = {};
+  var bd = {};
+  var rd = {};
+  var cd = [];
   data.b.forEach(function(d,j) {
-    console.log(d);
     var dt0 = new Date(d.b);
     dt0.clearTime();
-    //var d0 = new Date(dt0.getFullYear(), dt0.getMonth(), dt0.getDate());
     var dt1 = new Date(d.e);
     dt1.clearTime();
-    //var d1 = new Date(dt1.getFullYear(), dt1.getMonth(), dt1.getDate());
-    while (!dt0.equals(dt1)) {
-      console.log(dt0);
-      var b = busy_days[dt0];
-      if (b) {
-        console.log(b);
-        //busy_days[dt0] += " " + users[d.u].n;
-        busy_days[dt0] += " " + d.u;
+    var daybook = dt0.equals(dt1); // color anyway
+    while (daybook || !dt0.equals(dt1)) {
+      if (bd[dt0]) {
+        if (bd[dt0].indexOf(users[d.u].n) < 0) bd[dt0].push(users[d.u].n);
       } else {
-        //console.log("new day");
-        //console.log(d.u);
-        //console.log(users);
-        //console.log(users[d.u]);
-        //busy_days[dt0] = users[d.u].n;
-        busy_days[dt0] = "" + d.u;
+        bd[dt0] = [ users[d.u].n ];
       }
-      // TODO conflict detection:  same resource on same day
-      dt0.addDays(1);
+      if (rd[dt0]) {
+        if (rd[dt0].indexOf(d.r) < 0) rd[dt0].push(d.r);
+        else cd.push(dt0); // same resource on this day, potential conflict
+      } else {
+        rd[dt0] = [ d.r ];
+      }
+      if (daybook) break;
+      else dt0.addDays(1);
     }
+  });
+
+  busy_days = {};
+  conflict_days = {};
+  $.each(bd, function(k,v) {
+    busy_days[k] = v.join();
+  });
+  cd.forEach(function(d,j) {
+    // check whether there's an overlap in time
   });
 }
 
@@ -144,12 +160,8 @@ $.datepicker.setDefaults({
     if (conflict) {
       return [ true, "conflict", conflict ];
     } else {
-      console.log("beforeShowDay called");
-      console.log(date);
       var busy = busy_days[date];
-      console.log(busy);
       if (busy) {
-        console.log("add class busy");
         return [ true, "busy", busy ];
       } else {
         return [ true, '', '' ];
@@ -204,8 +216,10 @@ $(document).ready(function() {
   $.getJSON('{% static "json/config.json" %}', function(indata) {
     data = indata.data;
     var selres = $('#res');
+    var selres2 = $('#select_resource');
     data.res.forEach(function(d,j) {
       selres.append('<option value="' + d.pk + '">' + d.name + '</option>');
+      selres2.append('<option value="' + d.pk + '">' + d.name + '</option>');
       resources[d.pk] = d.name;
     });
     // set default value based on group (but may not exist)
@@ -217,10 +231,25 @@ $(document).ready(function() {
     $('#starttime').prop('value', old_default_begin);
     $('#stoptime').prop('value', old_default_end);
     $('#tzs').val(old_default_zone);
-    data.us.forEach(function(d,j) { users[d.pk] = { 'n': d.name, 'g': d.g } });
+    var seluser = $('#select_user');
+    data.us.forEach(function(d,j) {
+      users[d.pk] = { 'n': d.name, 'g': d.g };
+      seluser.append('<option value="' + d.pk + '">' + d.name + '</option>');
+    });
     data.gs.forEach(function(d,j) { groups[d.pk] = d.name });
     data.aps.forEach(function(d,j) { approvers.push({ 'u': d.u, 'r': d.r }) });
+
+    $('#select_resource').multiselect({
+      close: update_days_current,
+      noneSelectedText: 'Select resources'
+    });
+    $('#select_user').multiselect({
+      close: update_days_current,
+      noneSelectedText: 'Select users'
+    });
+    $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
   });
+
 
   // datepickers
   $('#startdate').datepicker({
@@ -298,14 +327,20 @@ $(document).ready(function() {
     }
   });
 
-  $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
-
 });
+
+var current_data = {};
 
 function fill_bookings(data) {
   console.log('fill_bookings()');
   console.log(data);
   update_days(data);
+  // need to do a deep copy of data to current_data;
+  // or change update_days to select from persistent selectors
+}
+
+function update_days_current() {
+  //update_days(current_data);
 }
 
 </script>
