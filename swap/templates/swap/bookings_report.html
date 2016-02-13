@@ -2,18 +2,22 @@
 {% load staticfiles %}
 {% load tz %}
 {% block title %}
-Bookings list
+Bookings report
 {% endblock %}
 {% block head %}
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href='{% static "js/jquery.dataTables.min.css" %}'>
+<link rel="stylesheet" href='{% static "js/buttons.dataTables.min.css" %}'>
 <link rel="stylesheet" href='{% static "js/jquery-ui-1.11.4/jquery-ui.min.css" %}'>
 <link rel="stylesheet" href='{% static "js/jquery.multiselect.css" %}'>
-<link rel="stylesheet" href='{% static "js/jquery.multiselect.filter.css" %}'>
 <script src='{% static "js/jquery-1.12.0.min.js" %}'></script>
+<script src='{% static "js/jquery.dataTables.min.js" %}'></script>
+<script src='{% static "js/dataTables.buttons.min.js" %}'></script>
+<script src='{% static "js/buttons.colVis.min.js" %}'></script>
+<script src='{% static "js/buttons.print.min.js" %}'></script>
 <script src='{% static "js/jquery-ui-1.11.4/jquery-ui.min.js" %}'></script>
 <script src='{% static "js/jquery-cookie-1.4.1/jquery.cookie.js" %}'></script>
 <script src='{% static "js/jquery.multiselect.min.js" %}'></script>
-<script src='{% static "js/jquery.multiselect.filter.js" %}'></script>
 <script src='{% static "js/date.js" %}'></script>
 
 <style>
@@ -107,17 +111,15 @@ var approvers = [];
 var busy_days = {};
 var conflict_days = {};
 
-// booking and comment data
-var bdata = [];
-var cdata = [];
-
-function update_days() {
+function update_days(data) {
   var bd = {};
   var rd = {};
   var cd = [];
-  bdata.forEach(function(d,j) {
-    var dt0 = d.b.clone().clearTime();
-    var dt1 = d.e.clone().clearTime();
+  data.b.forEach(function(d,j) {
+    var dt0 = new Date(d.b);
+    dt0.clearTime();
+    var dt1 = new Date(d.e);
+    dt1.clearTime();
     var daybook = dt0.equals(dt1); // color anyway
     while (daybook || !dt0.equals(dt1)) {
       if (bd[dt0]) {
@@ -210,44 +212,12 @@ $(document).ready(function() {
   $.getJSON('{% static "json/config.json" %}', function(indata) {
     data = indata.data;
     var selres = $('#res');
+    var selres2 = $('#select_resource');
     data.res.forEach(function(d,j) {
       selres.append('<option value="' + d.pk + '">' + d.name + '</option>');
+      selres2.append('<option value="' + d.pk + '">' + d.name + '</option>');
       resources[d.pk] = d.name;
     });
-    data.us.forEach(function(d,j) { users[d.pk] = { 'n': d.name, 'g': d.g }; });
-    var hsr = [];
-    var hsu = [];
-    for (var i = 0; i < data.gs.length; ++i) {
-      var ga = data.gs[i].r;
-      if (ga.length > 0) {
-        hsr.push('<optgroup label="' + data.gs[i].name + '">');
-        for (var j = 0; j < ga.length; ++j) {
-          var rpk = ga[j];
-          hsr.push('<option value="' + rpk + '">' + resources[rpk] + '</option>');
-        }
-        hsr.push('</optgroup>');
-      }
-      ga = data.gs[i].u;
-      if (ga.length > 0) {
-        hsu.push('<optgroup label="' + data.gs[i].name + '">');
-        for (var j = 0; j < ga.length; ++j) {
-          var upk = ga[j];
-          hsu.push('<option value="' + upk + '">' + users[upk].n + '</option>');
-        }
-        hsu.push('</optgroup>');
-      }
-    }
-    $('#select_resource').html(hsr.join('')).multiselect({
-      close: update_days,
-      noneSelectedText: 'Select resources',
-      selectedText: '# of # resources'
-    }).multiselectfilter();
-    $('#select_user').html(hsu.join('')).multiselect({
-      close: update_days,
-      noneSelectedText: 'Select users',
-      selectedText: '# of # users'
-    }).multiselectfilter();
-
     // set default value based on group (but may not exist)
     var seltzs = $('#tzs');
     data.tzs.forEach(function(d,j) {
@@ -257,10 +227,22 @@ $(document).ready(function() {
     $('#starttime').prop('value', old_default_begin);
     $('#stoptime').prop('value', old_default_end);
     $('#tzs').val(old_default_zone);
-
+    var seluser = $('#select_user');
+    data.us.forEach(function(d,j) {
+      users[d.pk] = { 'n': d.name, 'g': d.g };
+      seluser.append('<option value="' + d.pk + '">' + d.name + '</option>');
+    });
     data.gs.forEach(function(d,j) { groups[d.pk] = d.name });
     data.aps.forEach(function(d,j) { approvers.push({ 'u': d.u, 'r': d.r }) });
 
+    $('#select_resource').multiselect({
+      close: update_days_current,
+      noneSelectedText: 'Select resources'
+    });
+    $('#select_user').multiselect({
+      close: update_days_current,
+      noneSelectedText: 'Select users'
+    });
     $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
   });
 
@@ -343,24 +325,18 @@ $(document).ready(function() {
 
 });
 
-function from_date_array(a) {
-  return new Date(a[0], a[1]-1, a[2], a[3], a[4]);
-}
+var current_data = {};
 
 function fill_bookings(data) {
   console.log('fill_bookings()');
   console.log(data);
-  data.b.forEach(function(d,j) {
-    bdata.push({ 'u': d.u, 'g': d.g, 'r': d.r, 'a': d.a,
-                 'b': from_date_array(d.b), 'e': from_date_array(d.e),
-                 'tr': from_date_array(d.tr), 'tm': from_date_array(d.tm) });
-  });
-  data.c.forEach(function(d,j) {
-    cdata.push({ 'c': d.c, 'b': d.b, 't': from_date_array(d.t), 's': d.s });
-  });
-  update_days();
+  update_days(data);
   // need to do a deep copy of data to current_data;
   // or change update_days to select from persistent selectors
+}
+
+function update_days_current() {
+  //update_days(current_data);
 }
 
 </script>

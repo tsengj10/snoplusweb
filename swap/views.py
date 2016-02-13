@@ -107,14 +107,18 @@ def bookings_json(request):
   jb = []
   for b in Booking.objects.filter(**kwargs).order_by('begin_time'):
     z = pytz.timezone(b.resource.default_zone.name)
+    tb = localtime(b.begin_time, z)
+    te = localtime(b.end_time, z)
+    tr = localtime(b.request_time, z)
+    tm = localtime(b.modification_time, z)
     jb.append({ 'u': b.user.pk,
                 'g': b.group.pk,
                 'r': b.resource.pk,
                 'a': b.approval.user.pk if b.approval != None else 0,
-                'b': localtime(b.begin_time, z),
-                'e': localtime(b.end_time, z),
-                'tr': localtime(b.request_time, z),
-                'tm': localtime(b.modification_time, z),
+                'b': date_array(tb),
+                'e': date_array(te),
+                'tr': date_array(tr),
+                'tm': date_array(tm),
               })
   # probably want to change above times to local time,
   # as javascript seems to want to take out time offset
@@ -122,12 +126,15 @@ def bookings_json(request):
   for c in Comment.objects.filter(time__gte=past):
     jc.append({ 'c': c.commenter.pk,
                 'b': c.booking.pk,
-                't': localtime(c.time),
+                't': date_array(localtime(c.time)),
                 's': c.text,
               })
   logger.info('Bookings response = {0}'.format(jb))
   logger.info('Comments response = {0}'.format(jc))
   return JsonResponse({ 'b': jb, 'c': jc })
+
+def date_array(t):
+  return [ t.year, t.month, t.day, t.hour, t.minute ]
 
 # request/approve bookings
 

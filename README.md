@@ -7,6 +7,7 @@ libraries yourself:
 * [jquery 1.12.0](http://jquery.com/download/)
 * [jquery UI 1.11.4 (datepicker)](http://jqueryui.com/)
 * [jquery ui multiselect 1.13](http://www.erichynds.com/blog/jquery-ui-multiselect-widget)
+* [jquery ui multiselect filter 1.13](https://github.com/ehynds/jquery-ui-multiselect-widget)
 * [jquery cookie](https://plugins.jquery.com/cookie/)
 * [date.js](http://www.datejs.com/)
 
