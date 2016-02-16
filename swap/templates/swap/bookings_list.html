@@ -29,16 +29,22 @@ table.tcentered {
 td, th { padding: 5px; }
 p#messages { color: red; }
 
-.busy a {
-  background-color: Green !important;
-  background-image: none !important;
-  color: White !important;
+tbody tr td.busy a.ui-state-default {
+  background-color: Green;
+  background-image: none;
+  color: White;
   font-weight: bold;
 }
-.conflict a {
-  background-color: Red !important;
-  background-image: none !important;
-  color: White !important;
+tr td.partbusy a.ui-state-default {
+  background-color: Magenta;
+  background-image: none;
+  color: White;
+  font-weight: bold;
+}
+table tbody tr td.conflict a.ui-state-default {
+  background-color: Red;
+  background-image: none;
+  color: White;
   font-weight: bold;
 }
 </style>
@@ -49,6 +55,7 @@ p#messages { color: red; }
 <select id='select_resource' multiple='multiple'></select>
 <select id='select_user' multiple='multiple'></select>
 <select id='select_tz' multiple='multiple'></select>
+<button id='clear_date'>Clear date range</button>
 </p>
 
 <p>
@@ -126,6 +133,8 @@ function update_days() {
   cd.forEach(function(d,j) {
     // check whether there's an overlap in time
   });
+
+  $('#begindate').datepicker('refresh');
 }
 
 $.datepicker.setDefaults({
@@ -242,6 +251,7 @@ $(document).ready(function() {
       noneSelectedText: 'Select timezone',
       selectedList: 1
     });
+    $('#clear_date').button();
 
     // set default value based on group (but may not exist)
     var seltzs = $('#tzs');
