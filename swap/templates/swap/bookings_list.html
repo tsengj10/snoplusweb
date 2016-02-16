@@ -48,6 +48,11 @@ p#messages { color: red; }
 <p>
 <select id='select_resource' multiple='multiple'></select>
 <select id='select_user' multiple='multiple'></select>
+<select id='select_tz' multiple='multiple'></select>
+</p>
+
+<p>
+<div id='begindate'></div>
 </p>
 
 <p>
@@ -69,29 +74,6 @@ p#messages { color: red; }
 <p id="messages"></p>
 
 <p id='details'></p>
-
-<p>
-<table id='bookings' class='tcentered display' border='1'>
-<thead>
-  <tr>
-    <th>Approved</th>
-    <th>Begin date</th>
-    <th>End date</th>
-    <th>Resource</th>
-    <th>Name</th>
-  </tr>
-</thead>
-<tfoot>
-  <tr>
-    <th>Approved</th>
-    <th>Begin date</th>
-    <th>End date</th>
-    <th>Resource</th>
-    <th>Name</th>
-  </tr>
-</tfoot>
-</table>
-</p>
 
 {% endblock %}
 {% block scripts %}
@@ -237,16 +219,29 @@ $(document).ready(function() {
         hsu.push('</optgroup>');
       }
     }
+    var hzs = [];
+    for (var i = 0; i < data.tzs.length; ++i) {
+      hzs.push('<option value="' + data.tzs[i] + '">' + data.tzs[i] + "</option>");
+    }
+
     $('#select_resource').html(hsr.join('')).multiselect({
       close: update_days,
       noneSelectedText: 'Select resources',
-      selectedText: '# of # resources'
+      selectedText: '# of # resources',
+      selectedList: 1
     }).multiselectfilter();
     $('#select_user').html(hsu.join('')).multiselect({
       close: update_days,
       noneSelectedText: 'Select users',
-      selectedText: '# of # users'
+      selectedText: '# of # users',
+      selectedList: 1
     }).multiselectfilter();
+    $('#select_tz').html(hzs.join('')).multiselect({
+      multiple: false,
+      header: "Select timezone",
+      noneSelectedText: 'Select timezone',
+      selectedList: 1
+    });
 
     // set default value based on group (but may not exist)
     var seltzs = $('#tzs');
@@ -266,6 +261,16 @@ $(document).ready(function() {
 
 
   // datepickers
+  $('#begindate').datepicker({
+    defaultDate: '+1w',
+    changeMonth: true,
+    numberOfMonths: 3,
+    onSelect: function(dateText) {
+      console.log(dateText);
+      console.log($('#begindate').datepicker('getDate'));
+    }
+  });
+
   $('#startdate').datepicker({
     defaultDate: '+1w',
     changeMonth: true,
