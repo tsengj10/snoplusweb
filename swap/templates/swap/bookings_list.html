@@ -279,12 +279,12 @@ $(document).ready(function() {
     parseTime($('#starttime').prop('value'), bdt);
     parseTime($('#stoptime').prop('value'), edt);
     var reqs = { 'm': 'r',
-                 'r': $('#res').val(), 
+                 'r': $('#select_resource').val(), 
                  'b': [ bdt.getFullYear(), bdt.getMonth()+1, bdt.getDate(),
                         bdt.getHours(), bdt.getMinutes() ],
                  'e': [ edt.getFullYear(), edt.getMonth()+1, edt.getDate(),
                         edt.getHours(), edt.getMinutes() ],
-                 'z': $('#tzs').val()
+                 'z': $('#select_tz').val()
                };
     //console.log(JSON.stringify(reqs));
     //var qstring = window.location.href.slice(window.location.href.indexOf('?'));
@@ -302,10 +302,17 @@ $(document).ready(function() {
     }, 'json');
     $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
   });
-  //$('#tzs').select(function() {
-  //});
-  $('#res').change(function() {
-    var r = $('#res').val();
+  $('#clear_date').click(function() {
+  });
+  $('#clear_time').click(function() {
+  });
+
+
+  $('#select_tz').select(function() {
+  });
+
+  $('#select_resource').change(function() {
+    var r = $('#select_resource').val();
     var rpk = 0;
     for (var i = 0; i < data.res.length; ++i) {
       if (r == data.res[i].pk) {
@@ -314,19 +321,19 @@ $(document).ready(function() {
       }
     }
     var v = $('#starttime').prop('value');
-    if (v == old_default_begin || v == "") {
+    if (v == old_default_begin || v == "" || old_default_begin == "") {
       old_default_begin = data.res[rpk].dbt;
       $('#starttime').prop('value', old_default_begin);
     }
     v = $('#stoptime').prop('value');
-    if (v == old_default_end || v == "") {
+    if (v == old_default_end || v == "" || old_default_end == "") {
       old_default_end = data.res[rpk].det;
       $('#stoptime').prop('value', old_default_end);
     }
-    v = $('#tzs').prop('value');
-    if (v == old_default_zone || v == "") {
+    v = $('#select_tz').prop('value');
+    if (v == old_default_zone || v == "" || old_default_zone == "") {
       old_default_zone = data.res[rpk].dz;
-      $('#tzs').prop('value', old_default_zone);
+      $('#select_tz').prop('value', old_default_zone);
     }
   });
 
