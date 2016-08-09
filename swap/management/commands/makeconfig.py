@@ -16,35 +16,42 @@ class Command(BaseCommand):
 
     d = {
           "tzs": [ settings.TIME_ZONE ],
-          "res": [],
-          "us": [],
           "gs": [],
-          "aps": [],
+          "us": [],
+          "res": [],
         }
+
     for n in Zone.objects.all():
       if n.name not in d["tzs"]:
         d["tzs"].append(n.name)
+
     for g in Group.objects.all().order_by('name'):
-      d["gs"].append({ "pk": g.pk, "name": g.name, "u": [], "r": [] })
+      d["gs"].append({ "pk": g.pk, "name": g.name, "u": [], "ru": [], "ra": [] })
+
     for r in Resource.objects.all().order_by('name'):
       d["res"].append({ "pk": r.pk, "name": r.name,
+                        "desc": r.description,
                         "dbt": r.default_begin_time.isoformat(),
                         "det": r.default_end_time.isoformat(),
-                        "dz" : r.default_zone.name })
+                        "dz" : r.default_zone.name,
+                        "adv": r.advance_period,
+                        "ot": r.open_time.isoformat(),
+                        "ct": "" if r.close_time == None else r.close_time.isoformat(),
+                        "mt": r.modification_time.isoformat() })
       for gs in d["gs"]:
-        if r.group.pk == gs["pk"]:
-          gs["r"].append(r.pk)
-          break
-    for u in User.objects.all().order_by('username'):
-      gs = u.groups.first()
-      d["us"].append({ "pk": u.pk, "name": u.username, "g": gs.pk })
+        if r.user_group.pk == gs["pk"]:
+          gs["ru"].append(r.pk)
+        if r.admin_group.pk == gs["pk"]:
+          gs["ra"].append(r.pk)
+
+    for u in User.objects.all().order_by('last_name', 'first_name'):
+      d["us"].append({ "pk": u.pk, "name": u.username,
+                       "n1": u.first_name, "n2": u.last_name })
       for g in u.groups.all():
         for gs in d["gs"]:
           if g.pk == gs["pk"]:
             gs["u"].append(u.pk)
             break
-    for a in Approver.objects.all():
-      d["aps"].append({ "u": a.user.pk, "r": a.resource.pk })
 
     f = open(filename, 'w')
     data = { "data": d }

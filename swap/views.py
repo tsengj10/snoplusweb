@@ -11,7 +11,7 @@ import logging
 import datetime
 import pytz
 
-from .models import Resource, Approver, Booking, Comment, Zone
+from .models import Resource, Booking, Zone
 
 # Used for logging events
 logger =  logging.getLogger(__name__)
@@ -78,19 +78,18 @@ def bookings(request):
 def bookings_json(request):
   qd = request.GET
   # list bookings according to query
-  # by default, go back 1 year, forward 90 days
+  # by default, go back 31 days, forward 92 days
   now = datetime.datetime.now(datetime.timezone.utc)
   #past = (now + datetime.timedelta(-90)).isoformat(' ')
   #future = (now + datetime.timedelta(90)).isoformat(' ')
-  past = (now + datetime.timedelta(-90))
-  future = (now + datetime.timedelta(90))
+  past = (now + datetime.timedelta(-31))
+  future = (now + datetime.timedelta(92))
   kwargs = {}
   kwargs['begin_time__gte'] = past
   kwargs['begin_time__lte'] = future
   for k,v in [ ('u', 'user__pk'), # user
-               ('c', 'group__pk'), # group to charge
-               ('o', 'resource__group__pk'), # resource "owner"
-               ('a', 'approval__user__pk'), # approver
+               ('b', 'booker__pk'), # booker
+               ('c', 'charge_group__pk'), # group to charge
                ('r', 'resource__pk'), # resource id
              ]:
     n = qd.get(k)
@@ -112,26 +111,18 @@ def bookings_json(request):
     tr = localtime(b.request_time, z)
     tm = localtime(b.modification_time, z)
     jb.append({ 'u': b.user.pk,
-                'g': b.group.pk,
+                'b': b.booker.pk,
+                'g': b.charge_group.pk,
                 'r': b.resource.pk,
-                'a': b.approval.user.pk if b.approval != None else 0,
-                'b': date_array(tb),
-                'e': date_array(te),
+                'tb': date_array(tb),
+                'te': date_array(te),
                 'tr': date_array(tr),
                 'tm': date_array(tm),
               })
   # probably want to change above times to local time,
   # as javascript seems to want to take out time offset
-  jc = []
-  for c in Comment.objects.filter(time__gte=past):
-    jc.append({ 'c': c.commenter.pk,
-                'b': c.booking.pk,
-                't': date_array(localtime(c.time)),
-                's': c.text,
-              })
   logger.info('Bookings response = {0}'.format(jb))
-  logger.info('Comments response = {0}'.format(jc))
-  return JsonResponse({ 'b': jb, 'c': jc })
+  return JsonResponse({ 'b': jb })
 
 def date_array(t):
   return [ t.year, t.month, t.day, t.hour, t.minute ]
@@ -172,12 +163,9 @@ def request_resource(user, data):
     edtu = make_aware(edt, zone)
 
   if len(messages) == 0:
-    b = Booking(user=user, group=rg, resource=rr,
+    b = Booking(user=user, booker=user, charge_group=rg, resource=rr,
                 begin_time=bdtu, end_time=edtu)
     b.save()
 
   return messages
-
-def approve_request(request, req):
-  pass
 

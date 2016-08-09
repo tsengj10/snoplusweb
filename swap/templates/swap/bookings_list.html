@@ -26,6 +26,10 @@ table.tcentered {
   border-collapse: collapse;
   border: 1px solid black;
 }
+table.tboxed {
+  border-collapse: collapse;
+  border: 1px solid black;
+}
 td, th { padding: 5px; }
 p#messages { color: red; }
 
@@ -55,7 +59,6 @@ table tbody tr td.conflict a.ui-state-default {
 <select id='select_resource' multiple='multiple'></select>
 <select id='select_user' multiple='multiple'></select>
 <select id='select_tz' multiple='multiple'></select>
-<button id='clear_date'>Clear date range</button>
 </p>
 
 <p>
@@ -63,20 +66,22 @@ table tbody tr td.conflict a.ui-state-default {
 </p>
 
 <p>
-<table class='tcentered' border='1'>
+<table class='tboxed' border="1">
 <tr>
-  <td><select id='res'><option value=""></option></select></td>
-  <td><input id='startdate' class='dpicker' type='text'></td>
-  <td><input id='stopdate' class='dpicker' type='text'></td>
-  <td></td>
+  <td>Begin</td>
+  <td id='startdate'></td>
+  <td><input id='starttime' class='tpicker' type='text'></td>
 </tr>
 <tr>
-  <td><select id='tzs'><option value=""></option></select></td>
-  <td><input id='starttime' class='tpicker' type='text'></td>
+  <td>End</td>
+  <td id='stopdate'></td>
   <td><input id='stoptime' class='tpicker' type='text'></td>
-  <td><button type='button' id='requestbutton'>Request</button></td>
+</tr>
+<tr>
+  <td><button id='request_button'>Book</button></td>
+  <td><button id='clear_date'>Clear date range</button></td>
+  <td><button id='clear_time'>Default times</button></td>
 </table>
-</p>
 
 <p id="messages"></p>
 
@@ -90,15 +95,13 @@ table tbody tr td.conflict a.ui-state-default {
 var resources = [];
 var users = [];
 var groups = [];
-var approvers = [];
 
 // to add, busy_days[new Date()] = tooltip
 var busy_days = {};
 var conflict_days = {};
 
-// booking and comment data
+// booking data
 var bdata = [];
-var cdata = [];
 
 function update_days() {
   var bd = {};
@@ -200,16 +203,12 @@ $(document).ready(function() {
   // get configuration information
   $.getJSON('{% static "json/config.json" %}', function(indata) {
     data = indata.data;
-    var selres = $('#res');
-    data.res.forEach(function(d,j) {
-      selres.append('<option value="' + d.pk + '">' + d.name + '</option>');
-      resources[d.pk] = d.name;
-    });
-    data.us.forEach(function(d,j) { users[d.pk] = { 'n': d.name, 'g': d.g }; });
+    data.res.forEach(function(d,j) { resources[d.pk] = d.name; });
+    data.us.forEach(function(d,j) { users[d.pk] = { 'n': d.name }; });
     var hsr = [];
-    var hsu = [];
+    // order resources by user group
     for (var i = 0; i < data.gs.length; ++i) {
-      var ga = data.gs[i].r;
+      var ga = data.gs[i].ru;
       if (ga.length > 0) {
         hsr.push('<optgroup label="' + data.gs[i].name + '">');
         for (var j = 0; j < ga.length; ++j) {
@@ -218,62 +217,56 @@ $(document).ready(function() {
         }
         hsr.push('</optgroup>');
       }
-      ga = data.gs[i].u;
-      if (ga.length > 0) {
-        hsu.push('<optgroup label="' + data.gs[i].name + '">');
-        for (var j = 0; j < ga.length; ++j) {
-          var upk = ga[j];
-          hsu.push('<option value="' + upk + '">' + users[upk].n + '</option>');
-        }
-        hsu.push('</optgroup>');
-      }
     }
+    // order users (should be sorted by makeconfig)
+    var hsu = [];
+    for (var i = 0; i < data.us.length; ++i) {
+      hsu.push('<option value="' + data.us[i].pk + '">' +
+               data.us[i].n1 + ' ' + data.us[i].n2 + '</option>');
+    }
+    // timezone list
     var hzs = [];
     for (var i = 0; i < data.tzs.length; ++i) {
       hzs.push('<option value="' + data.tzs[i] + '">' + data.tzs[i] + "</option>");
     }
 
     $('#select_resource').html(hsr.join('')).multiselect({
+      multiple: false,
       close: update_days,
-      noneSelectedText: 'Select resources',
-      selectedText: '# of # resources',
+      noneSelectedText: 'Select resource',
       selectedList: 1
     }).multiselectfilter();
     $('#select_user').html(hsu.join('')).multiselect({
+      multiple: false,
       close: update_days,
-      noneSelectedText: 'Select users',
-      selectedText: '# of # users',
+      noneSelectedText: 'Select user',
       selectedList: 1
     }).multiselectfilter();
     $('#select_tz').html(hzs.join('')).multiselect({
       multiple: false,
       header: "Select timezone",
-      noneSelectedText: 'Select timezone',
       selectedList: 1
     });
+    $('#select_tz').val(data.tzs[0]);
+    $('#select_tz').multiselect("refresh");
     $('#clear_date').button();
+    $('#clear_time').button();
+    $('#request_button').button();
 
     // set default value based on group (but may not exist)
-    var seltzs = $('#tzs');
-    data.tzs.forEach(function(d,j) {
-      seltzs.append('<option value="' + d + '">' + d + '</option>');
-    });
-    //seltzs.val(data.tzs[0]);
     $('#starttime').prop('value', old_default_begin);
     $('#stoptime').prop('value', old_default_end);
-    $('#tzs').val(old_default_zone);
 
     data.gs.forEach(function(d,j) { groups[d.pk] = d.name });
-    data.aps.forEach(function(d,j) { approvers.push({ 'u': d.u, 'r': d.r }) });
 
     $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
   });
-
 
   // datepickers
   $('#begindate').datepicker({
     defaultDate: '+1w',
     changeMonth: true,
+    changeYear: true,
     numberOfMonths: 3,
     onSelect: function(dateText) {
       console.log(dateText);
@@ -281,28 +274,9 @@ $(document).ready(function() {
     }
   });
 
-  $('#startdate').datepicker({
-    defaultDate: '+1w',
-    changeMonth: true,
-    numberOfMonths: 3,
-    onClose: function(selectedDate) {
-      $('#stopdate').datepicker('option', 'minDate', selectedDate);
-    }
-  });
-  $('#stopdate').datepicker({
-    defaultDate: '+1w',
-    changeMonth: true,
-    numberOfMonths: 3,
-    onClose: function(selectedDate) {
-      $('#startdate').datepicker('option', 'maxDate', selectedDate);
-    }
-  });
-
   // buttons
-  $('#requestbutton').click(function() {
-    var bdt = $('#startdate').datepicker('getDate');
+  $('#request_button').click(function() {
     parseTime($('#starttime').prop('value'), bdt);
-    var edt = $('#stopdate').datepicker('getDate');
     parseTime($('#stoptime').prop('value'), edt);
     var reqs = { 'm': 'r',
                  'r': $('#res').val(), 
@@ -366,12 +340,9 @@ function fill_bookings(data) {
   console.log('fill_bookings()');
   console.log(data);
   data.b.forEach(function(d,j) {
-    bdata.push({ 'u': d.u, 'g': d.g, 'r': d.r, 'a': d.a,
-                 'b': from_date_array(d.b), 'e': from_date_array(d.e),
+    bdata.push({ 'u': d.u, 'b': d.b, 'g': d.g, 'r': d.r,
+                 'tb': from_date_array(d.b), 'te': from_date_array(d.e),
                  'tr': from_date_array(d.tr), 'tm': from_date_array(d.tm) });
-  });
-  data.c.forEach(function(d,j) {
-    cdata.push({ 'c': d.c, 'b': d.b, 't': from_date_array(d.t), 's': d.s });
   });
   update_days();
   // need to do a deep copy of data to current_data;
