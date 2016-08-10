@@ -203,7 +203,12 @@ $(document).ready(function() {
   // get configuration information
   $.getJSON('{% static "json/config.json" %}', function(indata) {
     data = indata.data;
-    data.res.forEach(function(d,j) { resources[d.pk] = d.name; });
+    data.res.forEach(function(d,j) {
+      resources[d.pk] = {
+        'n': d.name,
+        'dbt': d.dbt,
+        'det': d.det };
+    });
     data.us.forEach(function(d,j) { users[d.pk] = { 'n': d.name }; });
     var hsr = [];
     // order resources by user group
@@ -213,7 +218,7 @@ $(document).ready(function() {
         hsr.push('<optgroup label="' + data.gs[i].name + '">');
         for (var j = 0; j < ga.length; ++j) {
           var rpk = ga[j];
-          hsr.push('<option value="' + rpk + '">' + resources[rpk] + '</option>');
+          hsr.push('<option value="' + rpk + '">' + resources[rpk].n + '</option>');
         }
         hsr.push('</optgroup>');
       }
@@ -305,6 +310,11 @@ $(document).ready(function() {
   $('#clear_date').click(function() {
   });
   $('#clear_time').click(function() {
+    var rpk = $('#select_resource').val();
+    if (rpk != null) {
+      $('#starttime').prop('value', resources[rpk].dbt);
+      $('#stoptime').prop('value', resources[rpk].det);
+    }
   });
 
 
