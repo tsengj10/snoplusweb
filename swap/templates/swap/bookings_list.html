@@ -102,6 +102,15 @@ var conflict_days = {};
 
 // booking data
 var bdata = [];
+var lastfetchtime = $.now(); // ms since 1 Jan 1970
+var msday = 24*60*60*1000; // ms in a day
+// current range of booking data fetched
+var bdbegin = lastfetchtime - 32*msday; // 31 days past
+var bdend = lastfetchtime + 92*msday; // 92 days in future
+
+// date selection
+var dsbegin = null; // Date (use getTime to compare)
+var dsend = null;
 
 function update_days() {
   var bd = {};
@@ -276,6 +285,25 @@ $(document).ready(function() {
     onSelect: function(dateText) {
       console.log(dateText);
       console.log($('#begindate').datepicker('getDate'));
+      var ds = $('#begindate').datepicker('getDate'); // timezone?
+      var dst = ds.getTime();
+      console.log('before selection ' + dsbegin + ' ' + dsend + ' ' + dst);
+      if (dsbegin == null) {
+        dsbegin = new Date(ds);
+      } else if (dsend == null) {
+        dsend = new Date(ds);
+      } else if (dst < dsbegin.getTime()) {
+        dsbegin.setTime(ds);
+      } else if (dst > dsend.getTime()) {
+        dsend.setTime(ds);
+      } else if (dst - dsbegin.getTime() < dsend.getTime() - dst) {
+        dsbegin.setTime(ds);
+      } else {
+        dsend.setTime(ds);
+      }
+      //update_days();
+      console.log('after selection ' + dsbegin + ' ' + dsend + ' ' + dst);
+      // TODO put date range in startdate and stopdate (but only day and day of week, not time)
     }
   });
 
@@ -308,6 +336,9 @@ $(document).ready(function() {
     $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
   });
   $('#clear_date').click(function() {
+    dsbegin = null;
+    dsend = null;
+    update_days();
   });
   $('#clear_time').click(function() {
     var rpk = $('#select_resource').val();
@@ -318,7 +349,9 @@ $(document).ready(function() {
   });
 
 
-  $('#select_tz').select(function() {
+  $('#select_tz').change(function() {
+    // need to redraw calendar with new timezone.
+    // also move dsbegin and dsend to new timezone.
   });
 
   $('#select_resource').change(function() {
