@@ -14,12 +14,14 @@ Bookings list
 <script src='{% static "js/jquery-cookie-1.4.1/jquery.cookie.js" %}'></script>
 <script src='{% static "js/jquery.multiselect.min.js" %}'></script>
 <script src='{% static "js/jquery.multiselect.filter.js" %}'></script>
-<script src='{% static "js/date.js" %}'></script>
+<script src='{% static "js/moment.min.js" %}'></script>
+<script src='{% static "js/moment-timezone-with-data.min.js" %}'></script>
 
 <style>
 input.dpicker { width: 6em }
 input.tpicker { width: 6em }
 p.centered { text-align: center; }
+tr.conflict { color: red }
 table.tcentered {
   margin-left: auto;
   margin-right: auto;
@@ -47,6 +49,12 @@ tr td.partbusy a.ui-state-default {
 }
 table tbody tr td.conflict a.ui-state-default {
   background-color: Red;
+  background-image: none;
+  color: White;
+  font-weight: bold;
+}
+table tbody tr td.selected a.ui-state-default {
+  background-color: Blue;
   background-image: none;
   color: White;
   font-weight: bold;
@@ -97,6 +105,7 @@ var users = [];
 var groups = [];
 
 // to add, busy_days[new Date()] = tooltip
+// (actually should use moment objects instead?)
 var busy_days = {};
 var conflict_days = {};
 
@@ -106,11 +115,59 @@ var lastfetchtime = $.now(); // ms since 1 Jan 1970
 var msday = 24*60*60*1000; // ms in a day
 // current range of booking data fetched
 var bdbegin = lastfetchtime - 32*msday; // 31 days past
-var bdend = lastfetchtime + 92*msday; // 92 days in future
+var bdend = lastfetchtime + 400*msday; // 400 days in future
+// current first date being displayed (need to check timezone by now!)
+var fd1 = new Date();
+fd1.setDate(1);
+var displaybegin = fd1.getTime(); // first of month
+var displayend = displaybegin + 92 * msday; // 92 days should clear 3 months
+// check sometime whether starts display in next month!
 
 // date selection
 var dsbegin = null; // Date (use getTime to compare)
 var dsend = null;
+
+// ways to update the displayed calendar
+function update_bookings() {
+  var bd = {};
+  bdata.forEach(function(d, j) {
+    if (d.e.getTime() < displaybegin) return; // clearly ends before display range
+    if (d.b.getTime() > displayend) return; // clearly begins after display range
+    var dt0 = d.b.clone().clearTime();
+    var dt1 = d.e.clone().clearTime();
+    var daybook = dt0.equals(dt1); // color anyway
+    while (daybook || !dt0.equals(dt1)) {
+      if (bd[dt0]) {
+      } else {
+        bd[dt0] = [ users[d.u].n ];
+      }
+      if (daybook) break;
+      else dt0.addDays(1);
+    }
+  });
+  $('#begindate').datepicker('refresh');
+}
+
+function update_selection() {
+  $('#begindate').datepicker('refresh');
+  if (dsbegin == null || dsend == null) return;
+  bdata.forEach(function(d, j) {
+    var rbegin = d.b.getTime();
+    var rend = d.e.getTime();
+    if ((rbegin < dsend && rend > dsbegin) ||
+        (dsbegin < rend && dsend > rbegin)) {
+      $('#det' + d.b).addClass("conflict");
+    } else {
+      $('#det' + d.b).removeClass("conflict");
+    }
+  });
+}
+
+function reload_bookings() {
+  $.getJSON('{% url "swap:bookings_json" %}',
+            { 'b1': Math.floor(bdbegin/1000), 'e0': Math.floor(bdend/1000) },
+            fill_bookings);
+}
 
 function update_days() {
   var bd = {};
@@ -156,6 +213,7 @@ $.datepicker.setDefaults({
     var conflict = conflict_days[date];
     if (conflict) {
       return [ true, "conflict", conflict ];
+      // selectable, class, optional tooltip
     } else {
       var busy = busy_days[date];
       if (busy) {
@@ -164,6 +222,11 @@ $.datepicker.setDefaults({
         return [ true, '', '' ];
       }
     }
+    // part busy?
+
+    // check select range
+    var ts = date.valueOf();
+    if (ts >= dsbegin && ts < dsend) return [ true, "selected" ];
   }
 });
 
@@ -273,7 +336,7 @@ $(document).ready(function() {
 
     data.gs.forEach(function(d,j) { groups[d.pk] = d.name });
 
-    $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
+    reload_bookings();
   });
 
   // datepickers
@@ -282,12 +345,28 @@ $(document).ready(function() {
     changeMonth: true,
     changeYear: true,
     numberOfMonths: 3,
+    onChangeMonthYear: function(year, month, inst) {
+      console.log("onChangeMonthYear " + year + " " + month);
+      displaybegin = new Date(year, month-1, 1).getTime();
+      displayend = displaybegin + 92 * msday;
+      console.log("displaybegin = " + new Date(displaybegin));
+      // check whether we need more data
+      var moredata = false;
+      if (displaybegin < bdbegin) {
+        moredata = true;
+        bdbegin = displaybegin;
+      }
+      if (displayend > bdend) {
+        moredata = true;
+        bdend = displayend + 400 * msday;
+      }
+      if (moredata) reload_bookings();
+      update_days(); // update list of days, remember month range 1-12
+      // check range to see if need new data
+    },
     onSelect: function(dateText) {
-      console.log(dateText);
-      console.log($('#begindate').datepicker('getDate'));
       var ds = $('#begindate').datepicker('getDate'); // timezone?
       var dst = ds.getTime();
-      console.log('before selection ' + dsbegin + ' ' + dsend + ' ' + dst);
       if (dsbegin == null) {
         dsbegin = new Date(ds);
       } else if (dsend == null) {
@@ -301,23 +380,25 @@ $(document).ready(function() {
       } else {
         dsend.setTime(ds);
       }
-      //update_days();
-      console.log('after selection ' + dsbegin + ' ' + dsend + ' ' + dst);
-      // TODO put date range in startdate and stopdate (but only day and day of week, not time)
+      update_selection();
+      if (dsbegin != null) $('#startdate').html(dsbegin.toDateString());
+      if (dsend != null) $('#stopdate').html(dsend.toDateString());
     }
   });
 
   // buttons
   $('#request_button').click(function() {
+    var bdt = new Date();
+    var edt = new Date();
     parseTime($('#starttime').prop('value'), bdt);
     parseTime($('#stoptime').prop('value'), edt);
     var reqs = { 'm': 'r',
                  'r': $('#select_resource').val(), 
-                 'b': [ bdt.getFullYear(), bdt.getMonth()+1, bdt.getDate(),
+                 'b': [ dsbegin.getFullYear(), dsbegin.getMonth()+1, dsbegin.getDate(),
                         bdt.getHours(), bdt.getMinutes() ],
-                 'e': [ edt.getFullYear(), edt.getMonth()+1, edt.getDate(),
+                 'e': [ dsend.getFullYear(), dsend.getMonth()+1, dsend.getDate(),
                         edt.getHours(), edt.getMinutes() ],
-                 'z': $('#select_tz').val()
+                 'z': $('#select_tz').val()[0]
                };
     //console.log(JSON.stringify(reqs));
     //var qstring = window.location.href.slice(window.location.href.indexOf('?'));
@@ -333,12 +414,14 @@ $(document).ready(function() {
         $('#messages').html('');
       }
     }, 'json');
-    $.getJSON('{% url "swap:bookings_json" %}', fill_bookings);
+    reload_bookings();
   });
   $('#clear_date').click(function() {
     dsbegin = null;
     dsend = null;
-    update_days();
+    $('#startdate').html('');
+    $('#stopdate').html('');
+    update_selection();
   });
   $('#clear_time').click(function() {
     var rpk = $('#select_resource').val();
@@ -346,6 +429,7 @@ $(document).ready(function() {
       $('#starttime').prop('value', resources[rpk].dbt);
       $('#stoptime').prop('value', resources[rpk].det);
     }
+    if (dsbegin != null && dsend != null) update_selection();
   });
 
 
@@ -382,21 +466,35 @@ $(document).ready(function() {
 
 });
 
+// year, month, day, hour, minute (but server sends in UTC zone)
 function from_date_array(a) {
-  return new Date(a[0], a[1]-1, a[2], a[3], a[4]);
+  //return new Date(a[0], a[1]-1, a[2], a[3], a[4]);
+  var b = [ a[0], a[1]-1, a[2], a[3], a[4], 0, 0 ];
+  return moment.utc(b);
 }
 
 function fill_bookings(data) {
   console.log('fill_bookings()');
   console.log(data);
+  var s = [];
+  s.push('<table class="tboxed"><tr><th>In</th><th>Out</th><th>Name</th><th>Group</th></tr>');
   data.b.forEach(function(d,j) {
-    bdata.push({ 'u': d.u, 'b': d.b, 'g': d.g, 'r': d.r,
-                 'tb': from_date_array(d.b), 'te': from_date_array(d.e),
-                 'tr': from_date_array(d.tr), 'tm': from_date_array(d.tm) });
+    var a = { 'u': d.u, 'b': d.b, 'g': d.g, 'r': d.r,
+              'tb': from_date_array(d.b), 'te': from_date_array(d.e),
+              'tr': from_date_array(d.tr), 'tm': from_date_array(d.tm) };
+    bdata.push(a);
+    s.push('<tr id="det"' + d.b + '><td>' + a.tb.format('ddd D MMM YY H:mm z') + '</td><td>' +
+                        a.te.format('ddd D MMM YY H:mm z') + '</td><td>' +
+                        users[d.u].n + '</td><td>' +
+                        groups[d.g] + '</td></tr>');
   });
+  s.push('</table>');
   update_days();
   // need to do a deep copy of data to current_data;
   // or change update_days to select from persistent selectors
+
+  // list bookings
+  $('#details').html(s.join(''));
 }
 
 </script>

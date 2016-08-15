@@ -9,9 +9,10 @@ def now_utc():
 
 class Zone(models.Model):
   name = models.CharField(max_length=40)
+  utc_offset = models.CharField(max_length=10)
 
   def __str__(self):
-    return self.name
+    return "{0} ({1})".format(self.name, self.utc_offset)
 
 class Resource(models.Model):
   # a resource to be swapped
@@ -21,18 +22,18 @@ class Resource(models.Model):
   user_group = models.ForeignKey('auth.Group', related_name="user_resources") # can book themselves in
   admin_group = models.ForeignKey('auth.Group', related_name="admin_resources") # can mod bookings, book others
   # default booking information
-  default_begin_time = models.TimeField(default=time(14,0)) # 2pm
-  default_end_time = models.TimeField(default=time(14,0)) # 12 noon
+  default_begin_time = models.TimeField(default=time(14,0)) # 2pm (in default_zone)
+  default_end_time = models.TimeField(default=time(14,0)) # 12 noon (in default_zone)
   default_zone = models.ForeignKey('Zone', null=True, default=None)
   # maximum booking range
   advance_period = models.IntegerField(default=90) # days
   # history fields:  when this resource started/stopped taking bookings.
   # (a resource is active when a future booking date falls within range,
   # so to inactivate a resource we change close_time to current time)
-  open_time = models.DateTimeField(default=now_utc) # start taking bookings
-  close_time = models.DateTimeField(null=True, blank=True)
+  open_time = models.DateTimeField(default=now_utc) # start taking bookings (UTC)
+  close_time = models.DateTimeField(null=True, blank=True) # store in UTC
   # bookkeeping
-  modification_time = models.DateTimeField(auto_now=True)
+  modification_time = models.DateTimeField(auto_now=True) # store in UTC
 
   def __str__(self):
     return self.name
