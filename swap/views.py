@@ -8,10 +8,11 @@ from django.http import JsonResponse
 from django.utils.timezone import utc, localtime, now, make_aware
 import json
 import logging
+import time
 import datetime
 import pytz
 
-from .models import Resource, Booking, Zone
+from .models import Resource, Booking, Zone, now_timestamp
 
 # Used for logging events
 logger =  logging.getLogger(__name__)
@@ -63,9 +64,13 @@ def bookings_json(request):
   qd = request.GET
   # list bookings according to query
   # by default, go back 31 days, forward 92 days
-  now = datetime.datetime.now(datetime.timezone.utc)
-  past = (now + datetime.timedelta(-31))
-  future = (now + datetime.timedelta(92))
+  #now = datetime.datetime.now(datetime.timezone.utc)
+  #past = (now + datetime.timedelta(-31))
+  #future = (now + datetime.timedelta(92))
+  now = now_timestamp()
+  sday = 24*60*60
+  past = now - 31*sday
+  future = now + 92*sday
 
   kwargs = {}
   kwargs['begin_time__gte'] = past
@@ -86,21 +91,22 @@ def bookings_json(request):
              ]:
     n = qd.get(k)
     if n != None and n.isnumeric():
-      kwargs[v] = datetime.datetime.fromtimestamp(int(n), datetime.timezone.utc)
+      kwargs[v] = int(n)
   jb = []
   for b in Booking.objects.filter(**kwargs).order_by('begin_time'):
     #z = pytz.timezone(b.resource.default_zone.name)
     z = pytz.utc
-    tb = localtime(b.begin_time, z)
-    te = localtime(b.end_time, z)
+    #tb = localtime(b.begin_time, z)
+    #te = localtime(b.end_time, z)
     tr = localtime(b.request_time, z)
     tm = localtime(b.modification_time, z)
-    jb.append({ 'u': b.user.pk,
+    jb.append({ 'bpk': b.pk,
+                'u': b.user.pk,
                 'b': b.booker.pk,
                 'g': b.charge_group.pk,
                 'r': b.resource.pk,
-                'tb': date_array(tb),
-                'te': date_array(te),
+                'tb': b.begin_time,
+                'te': b.end_time,
                 'tr': date_array(tr),
                 'tm': date_array(tm),
               })
@@ -145,20 +151,22 @@ def request_resource(user, data):
     zone = pytz.timezone(data['z'])
   td = data['b']
   logger.info('  begin time {0}'.format(td))
-  if td == "" or len(td) < 5:
-    messages.append('Begin time invalid')
-  else:
-    bdt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
-    bdtu = make_aware(bdt, zone)
-    logger.info('  begin time aware {0}'.format(bdtu))
+  bdtu = int(td / 1000)
+  #if td == "" or len(td) < 5:
+  #  messages.append('Begin time invalid')
+  #else:
+  #  bdt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
+  #  bdtu = make_aware(bdt, zone)
+  #  logger.info('  begin time aware {0}'.format(bdtu))
   td = data['e']
   logger.info('  end time {0}'.format(td))
-  if td == "" or len(td) < 5:
-    messages.append('End time invalid')
-  else:
-    edt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
-    edtu = make_aware(edt, zone)
-    logger.info('  end time aware {0}'.format(edtu))
+  edtu = int(td / 1000)
+  #if td == "" or len(td) < 5:
+  #  messages.append('End time invalid')
+  #else:
+  #  edt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
+  #  edtu = make_aware(edt, zone)
+  #  logger.info('  end time aware {0}'.format(edtu))
 
   logger.info('Number of messages = {0}'.format(len(messages)))
 

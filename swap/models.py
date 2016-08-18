@@ -1,18 +1,22 @@
 from django.db import models
 
 from datetime import datetime, time, timedelta, timezone
+from time import time as stime
+import pytz
 
 # Create your models here.
 
 def now_utc():
   return datetime.now(timezone.utc)
 
+def now_timestamp():
+  return int(stime()) # seconds since epoch
+
 class Zone(models.Model):
   name = models.CharField(max_length=40)
-  utc_offset = models.CharField(max_length=10)
 
   def __str__(self):
-    return "{0} ({1})".format(self.name, self.utc_offset)
+    return "{0}".format(self.name)
 
 class Resource(models.Model):
   # a resource to be swapped
@@ -30,8 +34,8 @@ class Resource(models.Model):
   # history fields:  when this resource started/stopped taking bookings.
   # (a resource is active when a future booking date falls within range,
   # so to inactivate a resource we change close_time to current time)
-  open_time = models.DateTimeField(default=now_utc) # start taking bookings (UTC)
-  close_time = models.DateTimeField(null=True, blank=True) # store in UTC
+  open_time = models.IntegerField(default=0) # UTC timestamp in seconds
+  close_time = models.IntegerField(default=0) # UTC timestamp in seconds
   # bookkeeping
   modification_time = models.DateTimeField(auto_now=True) # store in UTC
 
@@ -44,11 +48,12 @@ class Booking(models.Model):
   booker = models.ForeignKey('auth.User', related_name="booker_bookings") # person booking the resource
   charge_group = models.ForeignKey('auth.Group', help_text='group to charge')
   resource = models.ForeignKey('Resource', related_name='booking')
-  begin_time = models.DateTimeField(['%Y-%m-%d %H:%M:%S'])
-  end_time = models.DateTimeField(['%Y-%m-%d %H:%M:%S'])
+  begin_time = models.IntegerField(default=0) # UTC timestamp in seconds
+  end_time = models.IntegerField(default=0) # UTC timestamp in seconds
   request_time = models.DateTimeField(auto_now_add=True)
   modification_time = models.DateTimeField(auto_now=True)
 
   def __str__(self):
-    return "{0} {1} ({2})".format(self.begin_time, self.user, self.resource)
+    t = datetime.fromtimestamp(self.begin_time, pytz.utc)
+    return "{0} {1} ({2})".format(t, self.user, self.resource)
 
