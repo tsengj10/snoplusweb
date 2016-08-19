@@ -41,7 +41,7 @@ table tbody tr td.busy a.ui-state-default {
   color: White;
   font-weight: bold;
 }
-table tbody tr td.conflict a.ui-state-default {
+table tbody tr td.conflicted a.ui-state-default {
   background-color: Red;
   background-image: none;
   color: White;
@@ -142,20 +142,20 @@ function update_bookings() {
                         resources[d.r].n + '</td><td>' +
                         users[d.u].n + '</td><td>' +
                         groups[d.g] + '</td></tr>');
-    var daybook = dt0.isSame(dt1, 'day'); // color anyway (even if 0-length booking!)
-    while (daybook || !dt0.isSame(dt1, 'day')) {
+    //var daybook = dt0.isSame(dt1, 'day'); // color anyway (even if 0-length booking!)
+    while (!dt0.isAfter(dt1, 'day')) {
       var iday = Math.floor((dt0.valueOf() - displaybegin) / msday);
       if (bd[iday]) {
         bd[iday].push(users[d.u].n);
         console.log("found a booking day " + iday + ": " + dt0.format());
       } else {
         bd[iday] = [ users[d.u].n ];
+        console.log("found a booking start " + iday + ": " + dt0.format());
       }
-      if (daybook) break;
-      else dt0.add(1, 'days');
+      //if (daybook) break;
+      dt0.add(1, 'days');
     }
   });
-  $('#begindate').datepicker('refresh');
   console.log('bd ' + bd);
   // consolidate booking days
   //   whoops:  indexed by begin date/time at minute granularity; this lookup by day
@@ -168,6 +168,7 @@ function update_bookings() {
   // list bookings
   s.push('</table>');
   $('#details').html(s.join(''));
+  $('#begindate').datepicker('refresh');
 }
 
 function update_selection() {
@@ -228,18 +229,21 @@ $.datepicker.setDefaults({
   //"dateFormat": "dd/mm/yy",
   "dateFormat": "dd M yy",
   "beforeShowDay": function(date) {
+    // normal display if nothing else
+    var val = [ true, '', 'not busy' ]
     var d = moment.tz([ date.getFullYear(), date.getMonth(), date.getDate() ], currentzone);
     var ts = d.valueOf();
     var iday = Math.floor((ts - displaybegin) / msday);
     var busy = busy_days[iday];
-    if (busy) return [ true, "busy", busy ];
+    if (busy) val = [ true, "busy", busy ];
 
     // check select range
     //console.log("beforeShowDay " + ts + " " + dsbegin);
-    if (ts >= dsbegin && ts < dsend) return [ true, "selected" ];
-
-    // otherwise normal display
-    return [ true, '', 'not busy' ];
+    if (ts >= dsbegin && ts < dsend) {
+      if (busy) val = [ true, "conflicted", busy ];
+      else val = [ true, "selected", 'not busy' ];
+    }
+    return val;
   }
 });
 
