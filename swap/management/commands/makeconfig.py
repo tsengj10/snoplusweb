@@ -15,7 +15,7 @@ class Command(BaseCommand):
     filename = options['filename']
 
     d = {
-          "tzs": [ settings.TIME_ZONE ],
+          "tzs": [],
           "gs": [],
           "us": [],
           "res": [],
@@ -35,8 +35,8 @@ class Command(BaseCommand):
                         "det": r.default_end_time.isoformat(),
                         "dz" : r.default_zone.name,
                         "adv": r.advance_period,
-                        "ot": r.open_time.isoformat(),
-                        "ct": "" if r.close_time == None else r.close_time.isoformat(),
+                        "ot": r.open_time,
+                        "ct": r.close_time,
                         "mt": r.modification_time.isoformat() })
       for gs in d["gs"]:
         if r.user_group.pk == gs["pk"]:

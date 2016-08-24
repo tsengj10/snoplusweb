@@ -146,7 +146,7 @@ def request_resource(user, data):
 
   if data['z'] == "":
     messages.append('No time zone specified')
-    zone = None
+    return messages
   else:
     zone = pytz.timezone(data['z'])
   td = data['b']
