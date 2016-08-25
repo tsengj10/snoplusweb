@@ -462,6 +462,10 @@ $(document).ready(function() {
     update_bookings();
   });
 
+  // called whenever an option is clicked
+  // TODO:  change close option to update_resource, which will do
+  // the following (but set the default time in current zone),
+  // and then call update_bookings
   $('#select_resource').change(function() {
     var r = $('#select_resource').val();
     var rpk = 0;
@@ -471,6 +475,9 @@ $(document).ready(function() {
         break;
       }
     }
+    console.log('select_resource change event ' + rpk);
+    console.log(r);
+
     var v = $('#starttime').prop('value');
     // change times if not explicitly changed before
     // TODO:  doesn't seem to be changing the zone
