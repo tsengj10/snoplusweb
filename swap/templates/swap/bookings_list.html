@@ -42,9 +42,9 @@ table tbody tr td.busy a.ui-state-default {
   font-weight: bold;
 }
 table tbody tr td.conflicted a.ui-state-default {
-  background-color: Red;
+  background-color: Blue;
   background-image: none;
-  color: White;
+  color: Red;
   font-weight: bold;
 }
 table tbody tr td.selected a.ui-state-default {
@@ -125,12 +125,22 @@ var dformat = 'ddd D MMM YYYY'; // moment.tz format string
 // ways to update the displayed calendar
 //   call whenever there is new data, or change display (such as timezone or resource list)
 function update_bookings() {
+  var res = [];
+  var usr = [];
+  var aa = $('#select_resource').val();
+  if (aa != null) aa.forEach(function(v) { res.push(parseInt(v)); });
+  aa = $('#select_user').val();
+  if (aa != null) aa.forEach(function(v) { usr.push(parseInt(v)); });
+  console.log(res);
+  console.log(usr);
   var bd = [];
   var s = [];
-  s.push('<table class="tboxed"><tr><th>In</th><th>Out</th><th>Resource</th><th>Name</th><th>Group</th></tr>');
+  s.push('<table class="tboxed" border="1"><tr><th>In</th><th>Out</th><th>Resource</th><th>Name</th><th>Group</th></tr>');
   for (var iday = 0; iday < 92; ++iday) bd[iday] = [];
   bdata.forEach(function(d, j) {
     console.log('update_bookings ' + d.tb + ' ' + displaybegin);
+    if (usr.length > 0 && !usr.includes(d.u)) return; // booking user not selected
+    if (res.length > 0 && !res.includes(d.r)) return; // booking resource not selected
     if (d.te < displaybegin) return; // clearly ends before display range
     if (d.tb > displayend) return; // clearly begins after display range
     console.log('in scope ' + d.tb);
@@ -184,7 +194,7 @@ function update_selection() {
     } else {
       var rbegin = d.tb;
       var rend = d.te;
-      if ((rbegin < dsend && rend > dsbegin) ||
+      if ((rbegin < dsend + msday && rend > dsbegin) ||
           (dsbegin < rend && dsend > rbegin)) {
         $('#det' + d.bpk).addClass("conflict");
       } else {
@@ -263,6 +273,15 @@ function parseTimeString(timeStr) {
   return v;
 }
 
+function parseTimeStringZone(timeStr, oldzone, newzone) {
+  if (timeStr == null || timeStr == '') return '';
+  var t = parseTimeString(timeStr);
+  var d = moment(displaybegin).tz(oldzone);
+  d.hour(t.h).minute(t.m);
+  d.tz(newzone);
+  return d.format('H:mm');
+}
+
 function csrfSafeMethod(method) {
     // these HTTP methods do not require CSRF protection
     return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
@@ -294,7 +313,8 @@ $(document).ready(function() {
       resources[d.pk] = {
         'n': d.name,
         'dbt': d.dbt,
-        'det': d.det };
+        'det': d.det,
+        'dz': d.dz };
     });
     data.us.forEach(function(d,j) { users[d.pk] = { 'n': d.name }; });
     var hsr = [];
@@ -331,6 +351,7 @@ $(document).ready(function() {
     }).multiselectfilter();
     $('#select_user').html(hsu.join('')).multiselect({
       //multiple: false,
+      close: update_bookings,
       noneSelectedText: 'Select users',
       selectedText: '# of # users',
       selectedList: 1
@@ -408,6 +429,7 @@ $(document).ready(function() {
     }, 'json');
     reload_bookings();
   });
+
   $('#clear_date').click(function() {
     dsbegin = null;
     dsend = null;
@@ -415,27 +437,28 @@ $(document).ready(function() {
     $('#stopdate').html('');
     update_selection();
   });
+
   $('#clear_time').click(function() {
-    var rpk = $('#select_resource').val();
-    if (rpk != null) {
-      $('#starttime').prop('value', resources[rpk].dbt);
-      $('#stoptime').prop('value', resources[rpk].det);
+    var spk = $('#select_resource').prop('value'); // just gets first selected resource
+    if (spk != '') {
+      var rpk = parseInt(spk);
+      $('#starttime').prop('value', parseTimeStringZone(resources[rpk].dbt, resources[rpk].dz, currentzone));
+      $('#stoptime').prop('value', parseTimeStringZone(resources[rpk].det, resources[rpk].dz, currentzone));
     }
     if (dsbegin != null && dsend != null) update_selection();
   });
 
-
   $('#select_tz').change(function() {
     // need to redraw calendar with new timezone.
-    // also move dsbegin and dsend to new timezone.
-
-    // get timezone
+    var oldzone = currentzone;
+    // get new timezone
     currentzone = $('#select_tz').val()[0];
-    // update booking times to new timezone
-    //bdata.forEach(function(d, j) {
-    //  d.tb.tz(currentzone);
-    //  d.te.tz(currentzone);
-    //});
+    // if there are time entries, change zone (use displaybegin to calculate offset)
+    $('input.tpicker').each(function(i) {
+      var s = $(this).prop('value');
+      if (s == null || s == '') return;
+      $(this).prop('value', parseTimeStringZone(s, oldzone, currentzone));
+    });
     update_bookings();
   });
 
@@ -449,25 +472,27 @@ $(document).ready(function() {
       }
     }
     var v = $('#starttime').prop('value');
+    // change times if not explicitly changed before
+    // TODO:  doesn't seem to be changing the zone
+    // (and is this the right behavior anyway?)
     if (v == old_default_begin || v == "" || old_default_begin == "") {
       old_default_begin = data.res[rpk].dbt;
       $('#starttime').prop('value', old_default_begin);
+      old_default_zone = data.res[rpk].dz;
+      $('#select_tz').val(old_default_zone);
     }
     v = $('#stoptime').prop('value');
     if (v == old_default_end || v == "" || old_default_end == "") {
       old_default_end = data.res[rpk].det;
       $('#stoptime').prop('value', old_default_end);
-    }
-    v = $('#select_tz').prop('value');
-    if (v == old_default_zone || v == "" || old_default_zone == "") {
       old_default_zone = data.res[rpk].dz;
-      $('#select_tz').prop('value', old_default_zone);
+      $('#select_tz').val(old_default_zone);
     }
   });
 
   // datepickers
   $('#begindate').datepicker({
-    defaultDate: '+1w',
+    //defaultDate: '+1w',
     changeMonth: true,
     changeYear: true,
     numberOfMonths: 3,
@@ -483,7 +508,7 @@ $(document).ready(function() {
       // check select range
       //console.log("beforeShowDay " + ts + " " + displaybegin);
       //console.log("beforeShowDay " + d.format() + " busy = " + busy);
-      if (ts >= dsbegin && ts < dsend) {
+      if (ts >= dsbegin && ts < dsend + msday) {
         if (busy) val = [ true, "conflicted", busy ];
         else val = [ true, "selected", 'not busy' ];
       }
@@ -515,15 +540,9 @@ $(document).ready(function() {
       var ds = moment.tz([ dssel.getFullYear(), dssel.getMonth(), dssel.getDate(),
                            0, 0, 0, 0 ], currentzone);
       var dst = ds.valueOf();
-      if (dsbegin == null) {
+      if (dsbegin == null && dsend == null) {
         dsbegin = dst;
-      } else if (dsend == null) {
-        if (dst < dsbegin) {
-          dsend = dsbegin;
-          dsbegin = dst;
-        } else {
-          dsend = dst;
-        }
+        dsend = dst;
       } else if (dst < dsbegin) {
         dsbegin = dst;
       } else if (dst > dsend) {
