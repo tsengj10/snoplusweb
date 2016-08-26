@@ -36,9 +36,9 @@ td, th { padding: 5px; }
 p#messages { color: red; }
 
 table tbody tr td.busy a.ui-state-default {
-  background-color: Green;
+  background-color: White;
   background-image: none;
-  color: White;
+  color: Purple;
   font-weight: bold;
 }
 table tbody tr td.conflicted a.ui-state-default {
@@ -58,6 +58,7 @@ table tbody tr td.selected a.ui-state-default {
 {% block content %}
 
 <p>
+<b>View:</b>
 <select id='select_resource' multiple='multiple'></select>
 <select id='select_user' multiple='multiple'></select>
 <select id='select_tz' multiple='multiple'></select>
@@ -87,7 +88,13 @@ table tbody tr td.selected a.ui-state-default {
 
 <p id="messages"></p>
 
-<p id='details'></p>
+<p>
+<table class="tboxed" border="1">
+<thead><tr><th></th><th>In</th><th>Out</th><th>Resource</th><th>Name</th><th>Group</th></tr></thead>
+<tbody id='details'>
+</tbody>
+</table>
+</p>
 
 {% endblock %}
 {% block scripts %}
@@ -135,7 +142,7 @@ function update_bookings() {
   console.log(usr);
   var bd = [];
   var s = [];
-  s.push('<table class="tboxed" border="1"><tr><th>In</th><th>Out</th><th>Resource</th><th>Name</th><th>Group</th></tr>');
+  //s.push('<table class="tboxed" border="1"><tr><th>In</th><th>Out</th><th>Resource</th><th>Name</th><th>Group</th></tr>');
   for (var iday = 0; iday < 92; ++iday) bd[iday] = [];
   bdata.forEach(function(d, j) {
     console.log('update_bookings ' + d.tb + ' ' + displaybegin);
@@ -148,11 +155,17 @@ function update_bookings() {
     //var dt1 = d.te.clone().startOf('day');
     var dt0 = moment.tz(d.tb, currentzone);
     var dt1 = moment.tz(d.te, currentzone);
-    s.push('<tr id="det' + d.bpk + '"><td>' + dt0.format(dtformat) + '</td><td>' +
+    s.push('<tr id="det' + d.bpk + '"><td>');
+    // add checkbox here if users can edit/delete
+    // <input type="checkbox" class="bsel" id="ticknnn">
+    // where nnn is d.bpk.
+    // Operation buttons at button:  delete, clear selection
+    s.push('</td><td>' +
+                        dt0.format(dtformat) + '</td><td>' +
                         dt1.format(dtformat) + '</td><td>' +
                         resources[d.r].n + '</td><td>' +
                         users[d.u].n + '</td><td>' +
-                        groups[d.g] + '</td></tr>');
+                        groups[d.g].n + '</td></tr>');
     //var daybook = dt0.isSame(dt1, 'day'); // color anyway (even if 0-length booking!)
     while (!dt0.isAfter(dt1, 'day')) {
       var iday = Math.floor((dt0.valueOf() - displaybegin) / msday);
@@ -181,7 +194,7 @@ function update_bookings() {
   }
   //console.log("busy_days = " + busy_days);
   // list bookings
-  s.push('</table>');
+  //s.push('</table>');
   $('#details').html(s.join(''));
   $('#begindate').datepicker('refresh');
 }
@@ -202,6 +215,25 @@ function update_selection() {
       }
     }
   });
+}
+
+// set default time of first resource in current timezone
+function update_resource_selection() {
+  var r = $('#select_resource').prop('value');
+  //console.log('update_resouce_selection ' + r);
+  if (r == null) return;
+  var rpk = parseInt(r);
+  // only change if not explicitly set before
+  var v = $('#starttime').prop('value');
+  if (v == old_default_begin || v == '' || old_default_begin == '') {
+    old_default_begin = parseTimeStringZone(resources[rpk].dbt, resources[rpk].dz, currentzone);
+    $('#starttime').prop('value', old_default_begin);
+  }
+  v = $('#stoptime').prop('value');
+  if (v == old_default_end || v == '' || old_default_end == '') {
+    old_default_end = parseTimeStringZone(resources[rpk].det, resources[rpk].dz, currentzone);
+    $('#stoptime').prop('value', old_default_end);
+  }
 }
 
 function reload_bookings() {
@@ -302,7 +334,6 @@ $.ajaxSetup({
 
 var old_default_begin = "";
 var old_default_end = "";
-var old_default_zone = "";
 
 $(document).ready(function() {
 
@@ -344,7 +375,7 @@ $(document).ready(function() {
 
     $('#select_resource').html(hsr.join('')).multiselect({
       //multiple: false,
-      close: update_bookings,
+      close: update_resource_selection,
       noneSelectedText: 'Select resources',
       selectedText: '# of # resources',
       selectedList: 1
@@ -372,7 +403,9 @@ $(document).ready(function() {
     $('#starttime').prop('value', old_default_begin);
     $('#stoptime').prop('value', old_default_end);
 
-    data.gs.forEach(function(d,j) { groups[d.pk] = d.name });
+    data.gs.forEach(function(d,j) {
+      groups[d.pk] = { 'n': d.name, 'ru': d.ru, 'ra': d.ra };
+    });
 
     var dt = new Date();
     var t = moment.tz([ dt.getFullYear(), dt.getMonth(), 1 ], currentzone);
@@ -460,41 +493,6 @@ $(document).ready(function() {
       $(this).prop('value', parseTimeStringZone(s, oldzone, currentzone));
     });
     update_bookings();
-  });
-
-  // called whenever an option is clicked
-  // TODO:  change close option to update_resource, which will do
-  // the following (but set the default time in current zone),
-  // and then call update_bookings
-  $('#select_resource').change(function() {
-    var r = $('#select_resource').val();
-    var rpk = 0;
-    for (var i = 0; i < data.res.length; ++i) {
-      if (r == data.res[i].pk) {
-        rpk = i;
-        break;
-      }
-    }
-    console.log('select_resource change event ' + rpk);
-    console.log(r);
-
-    var v = $('#starttime').prop('value');
-    // change times if not explicitly changed before
-    // TODO:  doesn't seem to be changing the zone
-    // (and is this the right behavior anyway?)
-    if (v == old_default_begin || v == "" || old_default_begin == "") {
-      old_default_begin = data.res[rpk].dbt;
-      $('#starttime').prop('value', old_default_begin);
-      old_default_zone = data.res[rpk].dz;
-      $('#select_tz').val(old_default_zone);
-    }
-    v = $('#stoptime').prop('value');
-    if (v == old_default_end || v == "" || old_default_end == "") {
-      old_default_end = data.res[rpk].det;
-      $('#stoptime').prop('value', old_default_end);
-      old_default_zone = data.res[rpk].dz;
-      $('#select_tz').val(old_default_zone);
-    }
   });
 
   // datepickers
