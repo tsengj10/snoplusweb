@@ -69,21 +69,23 @@ table tbody tr td.selected a.ui-state-default {
 </p>
 
 <p>
+<b>Book:</b>
+<select id='book_resource' multiple='multiple'></select>
+<select id='book_user' multiple='multiple'></select>
+<br>
 <table class='tboxed' border="1">
 <tr>
-  <td>Begin</td>
-  <td id='startdate'></td>
+  <td id='startdate'>From:</td>
   <td><input id='starttime' class='tpicker' type='text'></td>
-</tr>
-<tr>
-  <td>End</td>
-  <td id='stopdate'></td>
+  <td id='stopdate'>To:</td>
   <td><input id='stoptime' class='tpicker' type='text'></td>
 </tr>
 <tr>
-  <td><button id='request_button'>Book</button></td>
   <td><button id='clear_date'>Clear date range</button></td>
   <td><button id='clear_time'>Default times</button></td>
+  <td><button id='request_button'>Book</button></td>
+  <td><button id='replace_button'>Replace</button></td>
+</tr>
 </table>
 
 <p id="messages"></p>
@@ -94,16 +96,24 @@ table tbody tr td.selected a.ui-state-default {
 <tbody id='details'>
 </tbody>
 </table>
+<br>
+<button id='delete_button'>Delete</button>
 </p>
 
 {% endblock %}
 {% block scripts %}
 <script>
 
+var is_superuser = false;
+var is_admin = false;
+var user_pk = 0;
+var user_name = '';
+
 // configuration information
 var resources = [];
 var users = [];
 var groups = [];
+var admin_groups = [];
 
 // to add, busy_days[new Date()] = tooltip
 // (actually should use moment objects instead?)
@@ -128,6 +138,10 @@ var dsbegin = null; // Date (use getTime to compare)
 var dsend = null;
 var dtformat = 'ddd D MMM YYYY H:mm z'; // moment.tz format string
 var dformat = 'ddd D MMM YYYY'; // moment.tz format string
+
+// previous default times, so can tell whether it's been changed explicitly
+var old_default_begin = "";
+var old_default_end = "";
 
 // ways to update the displayed calendar
 //   call whenever there is new data, or change display (such as timezone or resource list)
@@ -164,7 +178,7 @@ function update_bookings() {
                         dt0.format(dtformat) + '</td><td>' +
                         dt1.format(dtformat) + '</td><td>' +
                         resources[d.r].n + '</td><td>' +
-                        users[d.u].n + '</td><td>' +
+                        users[d.u].fn + '</td><td>' +
                         groups[d.g].n + '</td></tr>');
     //var daybook = dt0.isSame(dt1, 'day'); // color anyway (even if 0-length booking!)
     while (!dt0.isAfter(dt1, 'day')) {
@@ -219,21 +233,23 @@ function update_selection() {
 
 // set default time of first resource in current timezone
 function update_resource_selection() {
-  var r = $('#select_resource').prop('value');
+  var r = $('#book_resource').prop('value');
   //console.log('update_resouce_selection ' + r);
-  if (r == null) return;
-  var rpk = parseInt(r);
-  // only change if not explicitly set before
-  var v = $('#starttime').prop('value');
-  if (v == old_default_begin || v == '' || old_default_begin == '') {
-    old_default_begin = parseTimeStringZone(resources[rpk].dbt, resources[rpk].dz, currentzone);
-    $('#starttime').prop('value', old_default_begin);
+  if (r != null && r != '') {
+    var rpk = parseInt(r);
+    // only change if not explicitly set before
+    var v = $('#starttime').prop('value');
+    if (v == old_default_begin || v == '' || old_default_begin == '') {
+      old_default_begin = parseTimeStringZone(resources[rpk].dbt, resources[rpk].dz, currentzone);
+      $('#starttime').prop('value', old_default_begin);
+    }
+    v = $('#stoptime').prop('value');
+    if (v == old_default_end || v == '' || old_default_end == '') {
+      old_default_end = parseTimeStringZone(resources[rpk].det, resources[rpk].dz, currentzone);
+      $('#stoptime').prop('value', old_default_end);
+    }
   }
-  v = $('#stoptime').prop('value');
-  if (v == old_default_end || v == '' || old_default_end == '') {
-    old_default_end = parseTimeStringZone(resources[rpk].det, resources[rpk].dz, currentzone);
-    $('#stoptime').prop('value', old_default_end);
-  }
+  check_request_conditions();
 }
 
 function reload_bookings() {
@@ -270,6 +286,21 @@ function fill_bookings(data) {
   update_bookings();
   // need to do a deep copy of data to current_data;
   // or change update_days to select from persistent selectors
+}
+
+// selected a user, at least one resource, and a date range
+function check_request_conditions() {
+  var v = false;
+  if (dsbegin == null || dsend == null) v = true;
+  if ($('#book_user').val() == null) v = true;
+  if ($('#book_resource').val() == null) v = true;
+  $('#request_button').button('option', 'disabled', v);
+}
+
+function check_replace_conditions() {
+}
+
+function check_delete_conditions() {
 }
 
 $.datepicker.setDefaults({
@@ -332,9 +363,6 @@ $.ajaxSetup({
 // {'username':'username','password':'password',
 //  'csrfmiddlewaretoken':'CSRF-TOKEN-V<U+200C><U+200B>ALUE'} – 
 
-var old_default_begin = "";
-var old_default_end = "";
-
 $(document).ready(function() {
 
   // get configuration information
@@ -347,18 +375,43 @@ $(document).ready(function() {
         'det': d.det,
         'dz': d.dz };
     });
-    data.us.forEach(function(d,j) { users[d.pk] = { 'n': d.name }; });
+    data.us.forEach(function(d,j) {
+      users[d.pk] = { 'n': d.name, 'fn': d.n1 + ' ' + d.n2 };
+      if (d.name == '{{ user }}') {
+        user_pk = d.pk;
+        user_name = d.n1 + ' ' + d.n2;
+        console.log('User pk = ' + user_pk);
+      }
+    });
+    data.gs.forEach(function(d,j) {
+      groups[d.pk] = { 'n': d.name, 'ru': d.ru, 'ra': d.ra };
+      if (d.ra.length > 0) {
+        if (d.u.includes(user_pk)) {
+          is_admin = true;
+          console.log('Is an administrator of ' + d.name);
+        }
+      }
+    });
+
     var hsr = [];
+    var hsru = [];
     // order resources by user group
     for (var i = 0; i < data.gs.length; ++i) {
+      var usable = data.gs[i].u.includes(user_pk);
       var ga = data.gs[i].ru;
       if (ga.length > 0) {
-        hsr.push('<optgroup label="' + data.gs[i].name + '">');
+        var s = '<optgroup label="' + data.gs[i].name + '">';
+        hsr.push(s);
+        if (usable) hsru.push(s);
         for (var j = 0; j < ga.length; ++j) {
           var rpk = ga[j];
-          hsr.push('<option value=' + rpk + '>' + resources[rpk].n + '</option>');
+          s = '<option value=' + rpk + '>' + resources[rpk].n + '</option>';
+          hsr.push(s);
+          if (usable) hsru.push(s);
         }
-        hsr.push('</optgroup>');
+        s = '</optgroup>';
+        hsr.push(s);
+        hsru.push(s);
       }
     }
     // order users (should be sorted by makeconfig)
@@ -375,7 +428,7 @@ $(document).ready(function() {
 
     $('#select_resource').html(hsr.join('')).multiselect({
       //multiple: false,
-      close: update_resource_selection,
+      close: update_bookings,
       noneSelectedText: 'Select resources',
       selectedText: '# of # resources',
       selectedList: 1
@@ -392,20 +445,39 @@ $(document).ready(function() {
       header: "Select timezone",
       selectedList: 1
     });
+
+    $('#book_resource').html(hsru.join('')).multiselect({
+      close: update_resource_selection,
+      noneSelectedText: 'Select resources',
+      selectedText: '# of # resources',
+      selectedList: 1
+    }).multiselectfilter();
+
+    // superusers and admin potentially can book any user into resources,
+    // while users really only book one's own behalf
+    var bulist = (is_superuser || is_admin) ? hsu.join('') :
+                 '<option value=' + user_pk + '>' + user_name + '</option>';
+    $('#book_user').html(bulist).multiselect({
+      close: check_request_conditions,
+      multiple: false,
+      noneSelectedText: 'Select user',
+      selectedList: 1
+    });
+    $('#book_user').val(user_pk);
+    $('#book_user').multiselect('refresh');
+
     currentzone = data.tzs[0];
     $('#select_tz').val(currentzone); // initial timezone
     $('#select_tz').multiselect("refresh");
     $('#clear_date').button();
     $('#clear_time').button();
-    $('#request_button').button();
+    $('#request_button').button({ disabled: true });
+    $('#replace_button').button({ disabled: true });
+    $('#delete_button').button({ disabled: true });
 
     // set default value based on group (but may not exist)
     $('#starttime').prop('value', old_default_begin);
     $('#stoptime').prop('value', old_default_end);
-
-    data.gs.forEach(function(d,j) {
-      groups[d.pk] = { 'n': d.name, 'ru': d.ru, 'ra': d.ra };
-    });
 
     var dt = new Date();
     var t = moment.tz([ dt.getFullYear(), dt.getMonth(), 1 ], currentzone);
@@ -463,12 +535,21 @@ $(document).ready(function() {
     reload_bookings();
   });
 
+  $('#replace_button').click(function() {
+    console.log('Replace button pressed');
+  });
+
+  $('#delete_button').click(function() {
+    console.log('Delete button pressed');
+  });
+
   $('#clear_date').click(function() {
     dsbegin = null;
     dsend = null;
-    $('#startdate').html('');
-    $('#stopdate').html('');
+    $('#startdate').html('From:');
+    $('#stopdate').html('To:');
     update_selection();
+    check_request_conditions();
   });
 
   $('#clear_time').click(function() {
@@ -558,8 +639,9 @@ $(document).ready(function() {
         dsend = dst;
       }
       update_selection();
-      if (dsbegin != null) $('#startdate').html(moment.tz(dsbegin, currentzone).format(dformat));
-      if (dsend != null) $('#stopdate').html(moment.tz(dsend, currentzone).format(dformat));
+      if (dsbegin != null) $('#startdate').html('From: ' + moment.tz(dsbegin, currentzone).format(dformat));
+      if (dsend != null) $('#stopdate').html('To: ' + moment.tz(dsend, currentzone).format(dformat));
+      check_request_conditions();
     }
   });
 
