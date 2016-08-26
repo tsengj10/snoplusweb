@@ -26,11 +26,11 @@ class ResourceList(ListView):
 
 @login_required
 def bookings(request):
+  messages = []
   if request.method == 'POST':
     # booking request or request approval
     # then redirect to bookings list
     logger.info('Bookings request')
-    messages = []
     qs = request.POST
     s = request.body.decode('utf-8')
     logger.info('Request:  {0}'.format(s))
@@ -52,10 +52,11 @@ def bookings(request):
       # unrecognized command
       messages = [ 'Unrecognized post response ' + s ]
       #return redirect('swap:bookings')
+      # we'd also like to return updated list of bookings
     return JsonResponse({ 'messages': messages })
 
   # respond to GET request
-  context = {}
+  context = { 'messages': messages }
   return render(request, 'swap/bookings_list.html', context)
 
 # booking list in json form
@@ -142,7 +143,13 @@ def request_resource(user, data):
       messages.append('Illegal resource id {0} (internal error)'.format(e))
       # also need to check availability and conflicts
 
-  logger.info('Resource request by user {0}'.format(user))
+  upk = int(data['u'])
+  try:
+    tenant = User.objects.get(pk=upk)
+  except:
+    messages.append('User {0} does not exist'.format(upk))
+
+  logger.info('Resource request by booker {0} for user {1}'.format(user, tenant))
 
   if data['z'] == "":
     messages.append('No time zone specified')
@@ -172,7 +179,7 @@ def request_resource(user, data):
 
   if len(messages) == 0:
     for e in rr:
-      b = Booking(user=user, booker=user, charge_group=rg, resource=e,
+      b = Booking(user=tenant, booker=user, charge_group=rg, resource=e,
                   begin_time=bdtu, end_time=edtu)
       b.save()
       logger.info('Booking created {0}'.format(b))

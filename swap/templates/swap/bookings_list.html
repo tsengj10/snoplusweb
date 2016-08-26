@@ -88,7 +88,13 @@ table tbody tr td.selected a.ui-state-default {
 </tr>
 </table>
 
-<p id="messages"></p>
+{% if messages %}
+  <p id="messages"><ul>
+  {% for msg in messages %}
+  <li>{{ msg }}
+  {% endfor %}
+  </ul></p>
+{% endif %}
 
 <p>
 <table class="tboxed" border="1">
@@ -104,10 +110,12 @@ table tbody tr td.selected a.ui-state-default {
 {% block scripts %}
 <script>
 
-var is_superuser = false;
+var is_superuser = false; // later should read context
 var is_admin = false;
 var user_pk = 0;
 var user_name = '';
+var res_use = []; // resources which the user can use
+var res_admin = []; // resources which the user can administer
 
 // configuration information
 var resources = [];
@@ -156,7 +164,6 @@ function update_bookings() {
   console.log(usr);
   var bd = [];
   var s = [];
-  //s.push('<table class="tboxed" border="1"><tr><th>In</th><th>Out</th><th>Resource</th><th>Name</th><th>Group</th></tr>');
   for (var iday = 0; iday < 92; ++iday) bd[iday] = [];
   bdata.forEach(function(d, j) {
     console.log('update_bookings ' + d.tb + ' ' + displaybegin);
@@ -169,11 +176,14 @@ function update_bookings() {
     //var dt1 = d.te.clone().startOf('day');
     var dt0 = moment.tz(d.tb, currentzone);
     var dt1 = moment.tz(d.te, currentzone);
-    s.push('<tr id="det' + d.bpk + '"><td>');
+    s.push('<tr class="blist" id="det' + d.bpk + '"><td>');
     // add checkbox here if users can edit/delete
     // <input type="checkbox" class="bsel" id="ticknnn">
     // where nnn is d.bpk.
-    // Operation buttons at button:  delete, clear selection
+    if (is_superuser || (is_admin && res_admin.includes(d.r)) ||
+        (user_pk == d.u && res_use.includes(d.u))) {
+      s.push('<input type="checkbox" class="bsel" id="tick' + d.bpk + '">');
+    }
     s.push('</td><td>' +
                         dt0.format(dtformat) + '</td><td>' +
                         dt1.format(dtformat) + '</td><td>' +
@@ -208,25 +218,34 @@ function update_bookings() {
   }
   //console.log("busy_days = " + busy_days);
   // list bookings
-  //s.push('</table>');
   $('#details').html(s.join(''));
+  $('.bsel').on('click', check_edit_conditions);
   $('#begindate').datepicker('refresh');
 }
 
 function update_selection() {
   $('#begindate').datepicker('refresh');
+  if (dsbegin == null || dsend == null || $('#book_resource').val() == null) {
+    $('.blist').removeClass('conflict');
+    return;
+  }
+  var rlist = $('#book_resource').val();
+  var rpks = [];
+  for (var i = 0; i < rlist.length; ++i) rpks.push(parseInt(rlist[i]));
+  console.log('update_selection');
+  console.log(rpks);
   bdata.forEach(function(d, j) {
-    if (dsbegin == null || dsend == null) {
-      $('#det' + d.bpk).removeClass("conflict");
+    if (!rpks.includes(d.r)) {
+      $('#det' + d.bpk).removeClass('conflict');
+      return;
+    }
+    var rbegin = d.tb;
+    var rend = d.te;
+    if ((rbegin < dsend + msday && rend > dsbegin) ||
+        (dsbegin < rend && dsend > rbegin)) {
+      $('#det' + d.bpk).addClass("conflict");
     } else {
-      var rbegin = d.tb;
-      var rend = d.te;
-      if ((rbegin < dsend + msday && rend > dsbegin) ||
-          (dsbegin < rend && dsend > rbegin)) {
-        $('#det' + d.bpk).addClass("conflict");
-      } else {
-        $('#det' + d.bpk).removeClass("conflict");
-      }
+      $('#det' + d.bpk).removeClass("conflict");
     }
   });
 }
@@ -250,6 +269,7 @@ function update_resource_selection() {
     }
   }
   check_request_conditions();
+  update_selection();
 }
 
 function reload_bookings() {
@@ -297,10 +317,11 @@ function check_request_conditions() {
   $('#request_button').button('option', 'disabled', v);
 }
 
-function check_replace_conditions() {
-}
-
-function check_delete_conditions() {
+function check_edit_conditions() {
+  // replace:  only one can be checked
+  var n = $('.bsel:checked').length;
+  $('#replace_button').button('option', 'disabled', (n!=1));
+  $('#delete_button').button('option', 'disabled', (n==0));
 }
 
 $.datepicker.setDefaults({
@@ -385,10 +406,14 @@ $(document).ready(function() {
     });
     data.gs.forEach(function(d,j) {
       groups[d.pk] = { 'n': d.name, 'ru': d.ru, 'ra': d.ra };
-      if (d.ra.length > 0) {
-        if (d.u.includes(user_pk)) {
+      if (d.u.includes(user_pk)) {
+        if (d.ra.length > 0) {
           is_admin = true;
           console.log('Is an administrator of ' + d.name);
+          Array.prototype.push.apply(res_admin, d.ra);
+        }
+        if (d.ru.length > 0) {
+          Array.prototype.push.apply(res_use, d.ru);
         }
       }
     });
@@ -496,6 +521,12 @@ $(document).ready(function() {
     var edt = new Date();
     if (dsbegin == null || dsend == null) return;
 
+    var upk = $('#book_user').prop('value');
+    if (upk == null || upk == '') return;
+
+    var rpks = $('#book_resource').val();
+    if (rpks == null) return;
+
     var db = moment.tz(dsbegin, currentzone);
     var s = $('#starttime').prop('value');
     if (s == null || s == "") return;
@@ -513,7 +544,8 @@ $(document).ready(function() {
     de.hour(t.h).minute(t.m);
 
     var reqs = { 'm': 'r',
-                 'r': $('#book_resource').val(), 
+                 'u': upk,
+                 'r': rpks, 
                  'b': db.valueOf(),
                  'e': de.valueOf(),
                  'z': currentzone
@@ -521,18 +553,21 @@ $(document).ready(function() {
     console.log(JSON.stringify(reqs));
     //var qstring = window.location.href.slice(window.location.href.indexOf('?'));
     $.post('', JSON.stringify(reqs), function(data) {
-      var msg = data.messages;
-      var t = [];
-      if (msg.length > 0) {
-        t.push('<ul>');
-        for (var i = 0; i < msg.length; ++i) t.push('<li>' + msg[i]);
-        t.push('</ul>');
-        $('#messages').html(t.join(''));
-      } else {
-        $('#messages').html('');
-      }
+      console.log(data);
+      //var msg = data.messages;
+      //var t = [];
+      //if (msg.length > 0) {
+      //  t.push('<ul>');
+      //  for (var i = 0; i < msg.length; ++i) t.push('<li>' + msg[i]);
+      //  t.push('</ul>');
+      //  $('#messages').html(t.join(''));
+      //} else {
+      //  $('#messages').html('');
+        fill_bookings(data);
+      //}
+      //reload_bookings(); // still doesn't update with most recent entry
+      // still doesn't work!
     }, 'json');
-    reload_bookings();
   });
 
   $('#replace_button').click(function() {
