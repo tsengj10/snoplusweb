@@ -301,7 +301,8 @@ function fill_bookings(data) {
               'te': d.te * 1000,
               'tr': from_date_array(d.tr),
               'tm': from_date_array(d.tm) };
-    bdata.push(a);
+    //bdata.push(a);
+    bdata[d.bpk] = a;
   });
   update_bookings();
   // need to do a deep copy of data to current_data;
@@ -319,9 +320,31 @@ function check_request_conditions() {
 
 function check_edit_conditions() {
   // replace:  only one can be checked
+  // delete:  any number can be checked
   var n = $('.bsel:checked').length;
   $('#replace_button').button('option', 'disabled', (n!=1));
   $('#delete_button').button('option', 'disabled', (n==0));
+  // if only one ticked, change selection to reflect
+  if (n == 1) {
+    // $('.bsel:checked').parent().parent() points to tr with det<pk>,
+    // use attr() to get string 'det<pk>'
+    var pk = parseInt($('.bsel:checked').parents('.blist').attr('id').substr(3));
+    dsbegin = bdata[pk].tb;
+    dsend = bdata[pk].te;
+    var mt = moment.tz(dsbegin, currentzone);
+    $('#startdate').html('From: ' + mt.format(dformat));
+    $('#starttime').prop('value', mt.format('H:mm'));
+    dsbegin = mt.startOf('day').valueOf();
+    mt = moment.tz(dsend, currentzone);
+    $('#stopdate').html('To: ' + mt.format(dformat));
+    $('#stoptime').prop('value', mt.format('H:mm'));
+    dsend = mt.startOf('day').valueOf();
+    $('#book_user').val(bdata[pk].u).multiselect('refresh');
+    $('#book_resource').val(bdata[pk].r).multiselect('refresh');
+    // book_group?
+    check_request_conditions();
+    update_selection();
+  }
 }
 
 $.datepicker.setDefaults({
@@ -543,28 +566,34 @@ $(document).ready(function() {
     if (t == null) return;
     de.hour(t.h).minute(t.m);
 
-    var reqs = { 'm': 'r',
-                 'u': upk,
-                 'r': rpks, 
-                 'b': db.valueOf(),
-                 'e': de.valueOf(),
-                 'z': currentzone
+    // remember all times in javascript are in ms,
+    // but on server side times are in seconds
+    var reqs = { 'mm': 'r',
+                 'uu': upk,
+                 'rr': rpks, 
+                 'bb': Math.floor(db.valueOf()/1000),
+                 'ee': Math.floor(de.valueOf()/1000),
+                 'zz': currentzone,
+                 'e0': Math.floor(bdbegin/1000),
+                 'b1': Math.floor(bdend/1000)
                };
     console.log(JSON.stringify(reqs));
     //var qstring = window.location.href.slice(window.location.href.indexOf('?'));
     $.post('', JSON.stringify(reqs), function(data) {
       console.log(data);
-      //var msg = data.messages;
-      //var t = [];
-      //if (msg.length > 0) {
-      //  t.push('<ul>');
-      //  for (var i = 0; i < msg.length; ++i) t.push('<li>' + msg[i]);
-      //  t.push('</ul>');
-      //  $('#messages').html(t.join(''));
-      //} else {
-      //  $('#messages').html('');
-        fill_bookings(data);
-      //}
+      var msg = data.messages;
+      var t = [];
+      if (msg.length > 0) {
+        t.push('<ul>');
+        for (var i = 0; i < msg.length; ++i) t.push('<li>' + msg[i]);
+        t.push('</ul>');
+        $('#messages').html(t.join(''));
+      } else {
+        $('#messages').html('');
+      }
+      fill_bookings(data);
+      check_request_conditions();
+      update_selection();
       //reload_bookings(); // still doesn't update with most recent entry
       // still doesn't work!
     }, 'json');
@@ -588,7 +617,7 @@ $(document).ready(function() {
   });
 
   $('#clear_time').click(function() {
-    var spk = $('#select_resource').prop('value'); // just gets first selected resource
+    var spk = $('#book_resource').prop('value'); // just gets first selected resource
     if (spk != '') {
       var rpk = parseInt(spk);
       $('#starttime').prop('value', parseTimeStringZone(resources[rpk].dbt, resources[rpk].dz, currentzone));

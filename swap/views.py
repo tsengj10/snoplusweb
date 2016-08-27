@@ -35,16 +35,16 @@ def bookings(request):
     s = request.body.decode('utf-8')
     logger.info('Request:  {0}'.format(s))
     data = json.loads(s)
-    logger.info('  method {0}'.format(data['m']))
-    if data['m'] == 'r':
+    logger.info('  method {0}'.format(data['mm']))
+    if data['mm'] == 'r':
       # request
       messages = request_resource(request.user, data)
 
-    elif data['m'] == 'x':
+    elif data['mm'] == 'x':
       # cancel booking
       logger.info('Delete ' + s)
 
-    elif data['m'] == 'e':
+    elif data['mm'] == 'e':
       # edit booking
       logger.info('Edit ' + s)
 
@@ -53,7 +53,8 @@ def bookings(request):
       messages = [ 'Unrecognized post response ' + s ]
       #return redirect('swap:bookings')
       # we'd also like to return updated list of bookings
-    return JsonResponse({ 'messages': messages })
+    jb = find_bookings(qs)
+    return JsonResponse({ 'b': jb, 'messages': messages })
 
   # respond to GET request
   context = { 'messages': messages }
@@ -62,7 +63,15 @@ def bookings(request):
 # booking list in json form
 @login_required
 def bookings_json(request):
-  qd = request.GET
+  jb = find_bookings(request.GET)
+  logger.info('Bookings response = {0}'.format(jb))
+  return JsonResponse({ 'b': jb })
+
+#====================================================================
+
+# fetch bookings according to QueryDict
+
+def find_bookings(qd):
   # list bookings according to query
   # by default, go back 31 days, forward 92 days
   #now = datetime.datetime.now(datetime.timezone.utc)
@@ -111,11 +120,8 @@ def bookings_json(request):
                 'tr': date_array(tr),
                 'tm': date_array(tm),
               })
-  # above sends time arrays in UTC.
-  ## probably want to change above times to local time,
-  ## as javascript seems to want to take out time offset
-  logger.info('Bookings response = {0}'.format(jb))
-  return JsonResponse({ 'b': jb })
+  # above sends request and mod time arrays in UTC.
+  return jb
 
 def date_array(t):
   return [ t.year, t.month, t.day, t.hour, t.minute ]
@@ -131,8 +137,8 @@ def request_resource(user, data):
   else:
     rg = None
     messages.append('User {0} does not have a group'.format(user))
-  logger.info('Resources requested = {0}'.format(data['r']))
-  ri = [ int(e) for e in data['r'] ]
+  logger.info('Resources requested = {0}'.format(data['rr']))
+  ri = [ int(e) for e in data['rr'] ]
   logger.info('  turned into numbers {0}'.format(ri))
   rr = []
   for e in ri:
@@ -143,7 +149,7 @@ def request_resource(user, data):
       messages.append('Illegal resource id {0} (internal error)'.format(e))
       # also need to check availability and conflicts
 
-  upk = int(data['u'])
+  upk = int(data['uu'])
   try:
     tenant = User.objects.get(pk=upk)
   except:
@@ -151,23 +157,23 @@ def request_resource(user, data):
 
   logger.info('Resource request by booker {0} for user {1}'.format(user, tenant))
 
-  if data['z'] == "":
+  if data['zz'] == "":
     messages.append('No time zone specified')
     return messages
   else:
-    zone = pytz.timezone(data['z'])
-  td = data['b']
+    zone = pytz.timezone(data['zz'])
+  td = data['bb']
   logger.info('  begin time {0}'.format(td))
-  bdtu = int(td / 1000)
+  bdtu = int(td)
   #if td == "" or len(td) < 5:
   #  messages.append('Begin time invalid')
   #else:
   #  bdt = datetime.datetime(td[0], td[1], td[2], td[3], td[4]) # assume seconds = 0!
   #  bdtu = make_aware(bdt, zone)
   #  logger.info('  begin time aware {0}'.format(bdtu))
-  td = data['e']
+  td = data['ee']
   logger.info('  end time {0}'.format(td))
-  edtu = int(td / 1000)
+  edtu = int(td)
   #if td == "" or len(td) < 5:
   #  messages.append('End time invalid')
   #else:
