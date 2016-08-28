@@ -43,10 +43,12 @@ def bookings(request):
     elif data['mm'] == 'x':
       # cancel booking
       logger.info('Delete ' + s)
+      messages = delete_booking(request.user, data)
 
     elif data['mm'] == 'e':
       # edit booking
       logger.info('Edit ' + s)
+      messages = change_booking(request.user, data)
 
     else:
       # unrecognized command
@@ -131,12 +133,23 @@ def date_array(t):
 def request_resource(user, data):
   logger.info('request_resource')
   messages = []
-  ngs = user.groups.count()
-  if ngs >= 1:
-    rg = user.groups.first()
-  else:
-    rg = None
-    messages.append('User {0} does not have a group'.format(user))
+
+  #ngs = user.groups.count()
+  #if ngs >= 1:
+  #  rg = user.groups.first()
+  #else:
+  #  rg = None
+  #  messages.append('User {0} does not have a group'.format(user))
+
+  gg = int(data['gg'])
+  try:
+    # is user a member of the group?
+    rg = user.groups.get(pk=gg)
+    #rg = Group.objects.get(pk=gg)
+  except ObjectDoesNotExist:
+    messages.append('Unknown group {0}'.format(gg))
+    logger.error('Unknown group {0}'.format(gg))
+
   logger.info('Resources requested = {0}'.format(data['rr']))
   ri = [ int(e) for e in data['rr'] ]
   logger.info('  turned into numbers {0}'.format(ri))
@@ -190,5 +203,82 @@ def request_resource(user, data):
       b.save()
       logger.info('Booking created {0}'.format(b))
 
+  return messages
+
+# change a single booking
+
+def change_booking(user, data):
+  logger.info('change_booking')
+  messages = []
+  logger.info('Booking to modify = {0}'.format(data['pk']))
+  bpk = int(data['pk'])
+  logger.info('  to int = {0}'.format(bpk))
+
+  gg = int(data['gg'])
+  try:
+    # is user a member of the group?
+    rg = user.groups.get(pk=gg)
+    #rg = Group.objects.get(pk=gg)
+  except ObjectDoesNotExist:
+    messages.append('Unknown group {0}'.format(gg))
+    logger.error('Unknown group {0}'.format(gg))
+
+  logger.info('Resource to update = {0}'.format(data['rr']))
+  if len(data['rr']) != 1:
+    messages.append('More than one resource to update')
+    logger.error('More than one resource to update')
+  else:
+    ri = int(data['rr'][0])
+    logger.info('Updated resource = {0}'.format(ri))
+    try:
+      rr = Resource.objects.get(pk=ri)
+    except ObjectDoesNotExist:
+      messages.append('Illegal resource id {0} (internal error)'.format(e))
+      logger.error('Illegal resource id {0} (internal error)'.format(e))
+      # also need to check availability and conflicts
+    logger.info('Updated resource = {0}'.format(rr))
+
+  upk = int(data['uu'])
+  try:
+    tenant = User.objects.get(pk=upk)
+  except:
+    messages.append('User {0} does not exist'.format(upk))
+    logger.error('User {0} does not exist'.format(upk))
+
+  logger.info('Resource request by booker {0} for user {1}'.format(user, tenant))
+
+  if data['zz'] == "":
+    messages.append('No time zone specified')
+    logger.error('No time zone specified')
+    return messages
+  else:
+    zone = pytz.timezone(data['zz'])
+  td = data['bb']
+  logger.info('  begin time {0}'.format(td))
+  bdtu = int(td)
+  td = data['ee']
+  logger.info('  end time {0}'.format(td))
+  edtu = int(td)
+
+  logger.info('Number of messages = {0}'.format(len(messages)))
+
+  if len(messages) == 0:
+    Booking.objects.filter(pk=bpk).update(user=tenant, booker=user,
+                                          charge_group=rg, resource=rr,
+                                          begin_time=bdtu, end_time=edtu)
+    logger.info('Booking updated')
+
+  #Booking.objects.filter(pk=bpk).update()
+  return messages
+
+# delete bookings
+
+def delete_booking(user, data):
+  logger.info('delete_booking')
+  messages = []
+  logger.info('Bookings to delete = {0}'.format(data['pk']))
+  bi = [ int(e) for e in data['bb'] ]
+  if len(bi) > 0:
+    b = Booking.objects.filter(pk__in=bi).delete()
   return messages
 

@@ -72,6 +72,7 @@ table tbody tr td.selected a.ui-state-default {
 <b>Book:</b>
 <select id='book_resource' multiple='multiple'></select>
 <select id='book_user' multiple='multiple'></select>
+<select id='book_group' multiple='multiple'></select>
 <br>
 <table class='tboxed' border="1">
 <tr>
@@ -83,18 +84,20 @@ table tbody tr td.selected a.ui-state-default {
 <tr>
   <td><button id='clear_date'>Clear date range</button></td>
   <td><button id='clear_time'>Default times</button></td>
-  <td><button id='request_button'>Book</button></td>
+  <td><button id='request_button'>New Booking</button></td>
   <td><button id='replace_button'>Replace</button></td>
 </tr>
 </table>
 
+<p id="messages">
 {% if messages %}
-  <p id="messages"><ul>
+  <ul>
   {% for msg in messages %}
   <li>{{ msg }}
   {% endfor %}
-  </ul></p>
+  </ul>
 {% endif %}
+</p>
 
 <p>
 <table class="tboxed" border="1">
@@ -114,6 +117,7 @@ var is_superuser = false; // later should read context
 var is_admin = false;
 var user_pk = 0;
 var user_name = '';
+var user_group_pk = 0; // default charging group for this user
 var res_use = []; // resources which the user can use
 var res_admin = []; // resources which the user can administer
 
@@ -128,7 +132,8 @@ var admin_groups = [];
 var busy_days = [];
 
 // booking data
-var bdata = [];
+var bdata = []; // indexed by booking pk
+var bsorted = []; // in order of start time
 var lastfetchtime = $.now(); // ms since 1 Jan 1970
 var msday = 24*60*60*1000; // ms in a day
 // current range of booking data fetched
@@ -165,7 +170,8 @@ function update_bookings() {
   var bd = [];
   var s = [];
   for (var iday = 0; iday < 92; ++iday) bd[iday] = [];
-  bdata.forEach(function(d, j) {
+  // TODO:  sort by beginning time
+  bsorted.forEach(function(d, j) {
     console.log('update_bookings ' + d.tb + ' ' + displaybegin);
     if (usr.length > 0 && !usr.includes(d.u)) return; // booking user not selected
     if (res.length > 0 && !res.includes(d.r)) return; // booking resource not selected
@@ -295,6 +301,7 @@ function fill_bookings(data) {
   console.log(data);
   var z = currentzone;
   bdata = [];
+  bsorted = [];
   data.b.forEach(function(d,j) {
     var a = { 'u': d.u, 'b': d.b, 'g': d.g, 'r': d.r, 'bpk': d.bpk,
               'tb': d.tb * 1000,
@@ -303,7 +310,9 @@ function fill_bookings(data) {
               'tm': from_date_array(d.tm) };
     //bdata.push(a);
     bdata[d.bpk] = a;
+    bsorted.push(a);
   });
+  bsorted.sort(function(a,b) { return a.tb - b.tb; });
   update_bookings();
   // need to do a deep copy of data to current_data;
   // or change update_days to select from persistent selectors
@@ -345,6 +354,57 @@ function check_edit_conditions() {
     check_request_conditions();
     update_selection();
   }
+}
+
+function post_messages(msg) {
+  var t = [];
+  if (msg.length > 0) {
+    t.push('<ul>');
+    for (var i = 0; i < msg.length; ++i) t.push('<li>' + msg[i]);
+    t.push('</ul>');
+    $('#messages').html(t.join(''));
+  } else {
+    $('#messages').html('');
+  }
+}
+
+function read_booking_data() {
+  if (dsbegin == null || dsend == null) return null;
+
+  var upk = $('#book_user').prop('value');
+  if (upk == null || upk == '') return null;
+
+  var rpks = $('#book_resource').val();
+  if (rpks == null) return null;
+
+  var gpk = $('#book_group').prop('value');
+  if (gpk == null || gpk == '') return null;
+
+  var s = $('#starttime').prop('value');
+  if (s == null || s == "") return null;
+  var t = parseTimeString(s);
+  if (t == null) return null;
+  var db = moment.tz(dsbegin, currentzone);
+  db.hour(t.h).minute(t.m);
+
+  s = $('#stoptime').prop('value');
+  if (s == null || s == "") return null;
+  t = parseTimeString(s);
+  if (t == null) return null;
+  var de = moment.tz(dsend, currentzone);
+  de.hour(t.h).minute(t.m);
+
+  // remember all times in javascript are in ms,
+  // but on server side times are in seconds
+  return { 'uu': upk,
+           'rr': rpks, 
+           'gg': gpk,
+           'bb': Math.floor(db.valueOf()/1000),
+           'ee': Math.floor(de.valueOf()/1000),
+           'zz': currentzone,
+           'e0': Math.floor(bdbegin/1000),
+           'b1': Math.floor(bdend/1000)
+         };
 }
 
 $.datepicker.setDefaults({
@@ -427,9 +487,13 @@ $(document).ready(function() {
         console.log('User pk = ' + user_pk);
       }
     });
+    var cg = []; // chargeable groups (with normal users)
     data.gs.forEach(function(d,j) {
       groups[d.pk] = { 'n': d.name, 'ru': d.ru, 'ra': d.ra };
       if (d.u.includes(user_pk)) {
+        if (d.ru.length > 0 && user_group_pk == 0) {
+          user_group_pk = d.pk; // default charging group
+        }
         if (d.ra.length > 0) {
           is_admin = true;
           console.log('Is an administrator of ' + d.name);
@@ -438,6 +502,10 @@ $(document).ready(function() {
         if (d.ru.length > 0) {
           Array.prototype.push.apply(res_use, d.ru);
         }
+      }
+      if (d.ru.length > 0) {
+        var s = '<option value=' + d.pk + '>' + d.name + '</option>';
+        cg.push(s);
       }
     });
 
@@ -514,6 +582,14 @@ $(document).ready(function() {
     $('#book_user').val(user_pk);
     $('#book_user').multiselect('refresh');
 
+    $('#book_group').html(cg.join('')).multiselect({
+      multiple: false,
+      noneSelectedText: 'Group to charge',
+      selectedList: 1
+    });
+    $('#book_group').val(user_group_pk);
+    $('#book_group').multiselect('refresh');
+
     currentzone = data.tzs[0];
     $('#select_tz').val(currentzone); // initial timezone
     $('#select_tz').multiselect("refresh");
@@ -540,71 +616,50 @@ $(document).ready(function() {
 
   // buttons
   $('#request_button').click(function() {
-    var bdt = new Date();
-    var edt = new Date();
-    if (dsbegin == null || dsend == null) return;
-
-    var upk = $('#book_user').prop('value');
-    if (upk == null || upk == '') return;
-
-    var rpks = $('#book_resource').val();
-    if (rpks == null) return;
-
-    var db = moment.tz(dsbegin, currentzone);
-    var s = $('#starttime').prop('value');
-    if (s == null || s == "") return;
-    //if (parseTime(s, bdt) == NaN) return;
-    var t = parseTimeString(s);
-    if (t == null) return;
-    db.hour(t.h).minute(t.m);
-
-    var de = moment.tz(dsend, currentzone);
-    s = $('#stoptime').prop('value');
-    if (s == null || s == "") return;
-    //if (parseTime(s, edt) == NaN) return;
-    t = parseTimeString(s);
-    if (t == null) return;
-    de.hour(t.h).minute(t.m);
-
-    // remember all times in javascript are in ms,
-    // but on server side times are in seconds
-    var reqs = { 'mm': 'r',
-                 'uu': upk,
-                 'rr': rpks, 
-                 'bb': Math.floor(db.valueOf()/1000),
-                 'ee': Math.floor(de.valueOf()/1000),
-                 'zz': currentzone,
-                 'e0': Math.floor(bdbegin/1000),
-                 'b1': Math.floor(bdend/1000)
-               };
+    var reqs = read_booking_data();
+    reqs['mm'] = 'r';
     console.log(JSON.stringify(reqs));
     //var qstring = window.location.href.slice(window.location.href.indexOf('?'));
     $.post('', JSON.stringify(reqs), function(data) {
       console.log(data);
-      var msg = data.messages;
-      var t = [];
-      if (msg.length > 0) {
-        t.push('<ul>');
-        for (var i = 0; i < msg.length; ++i) t.push('<li>' + msg[i]);
-        t.push('</ul>');
-        $('#messages').html(t.join(''));
-      } else {
-        $('#messages').html('');
-      }
+      post_messages(data.messages);
       fill_bookings(data);
       check_request_conditions();
       update_selection();
-      //reload_bookings(); // still doesn't update with most recent entry
       // still doesn't work!
     }, 'json');
   });
 
   $('#replace_button').click(function() {
     console.log('Replace button pressed');
+    if ($('.bsel:checked').length != 1) return;
+    var pk = $('.bsel:checked').parents('.blist').attr('id').substr(3);
+    var reqs = read_booking_data();
+    reqs['mm'] = 'e';
+    reqs['pk'] = pk;
+    $.post('', JSON.stringify(reqs), function(data) {
+      post_messages(data.messages);
+      fill_bookings(data);
+      check_request_conditions();
+      update_selection();
+    }, 'json');
   });
 
   $('#delete_button').click(function() {
     console.log('Delete button pressed');
+    // get list of pk's to delete
+    if ($('.bsel:checked').length < 1) return;
+    var pks = [];
+    $('.bsel:checked').parents('.blist').each(function(j, e) {
+      pks.push($(this).attr('id').substr(3));
+    });
+    var reqs = { 'mm': 'x', 'pk': pks };
+    $.post('', JSON.stringify(reqs), function(data) {
+      post_messages(data.messages);
+      fill_bookings(data);
+      check_request_conditions();
+      update_selection();
+    }, 'json');
   });
 
   $('#clear_date').click(function() {
