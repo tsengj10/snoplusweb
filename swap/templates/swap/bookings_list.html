@@ -170,7 +170,6 @@ function update_bookings() {
   var bd = [];
   var s = [];
   for (var iday = 0; iday < 92; ++iday) bd[iday] = [];
-  // TODO:  sort by beginning time
   bsorted.forEach(function(d, j) {
     console.log('update_bookings ' + d.tb + ' ' + displaybegin);
     if (usr.length > 0 && !usr.includes(d.u)) return; // booking user not selected
@@ -273,6 +272,19 @@ function update_resource_selection() {
       old_default_end = parseTimeStringZone(resources[rpk].det, resources[rpk].dz, currentzone);
       $('#stoptime').prop('value', old_default_end);
     }
+    // select to view if not already done so.
+    // if not selected before, then call update_bookings() as well.
+    // (Actually, don't need this.  select_resource defaults to see-all,
+    // so will see potential conflicts anyway.  Should use select_resource
+    // to narrow down conflicts.)
+    //var vv = $('#select_resource').val();
+    //if (vv == null) vv = [];
+    //if (!(r in vv)) {
+    //  vv.push(r);
+    //  $('#select_resource').val(vv);
+    //  $('#select_resource').multiselect('refresh');
+    //  update_bookings();
+    //}
   }
   check_request_conditions();
   update_selection();
@@ -350,7 +362,23 @@ function check_edit_conditions() {
     dsend = mt.startOf('day').valueOf();
     $('#book_user').val(bdata[pk].u).multiselect('refresh');
     $('#book_resource').val(bdata[pk].r).multiselect('refresh');
-    // book_group?
+    $('#book_group').val(bdata[pk].g).multiselect('refresh');
+    // Code below propagages book_resource to select_resource,
+    // but it also clears booking selection.
+    // Actually select_resource defaults to select-all,
+    // so there's no particular need to propagate.
+    // (Only an issue if had used select_resource before,
+    // and hadn't selected the intended resource to book.
+    // Maybe not a big deal.)
+    //var vv = $('#select_resource').val();
+    //var r = $('#book_resource').prop('value');
+    //if (vv == null) vv = [];
+    //if (!(r in vv)) {
+    //  vv.push(r);
+    //  $('#select_resource').val(vv);
+    //  $('#select_resource').multiselect('refresh');
+    //  update_bookings();
+    //}
     check_request_conditions();
     update_selection();
   }
