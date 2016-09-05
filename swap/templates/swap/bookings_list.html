@@ -170,10 +170,13 @@ function update_bookings() {
   var bd = [];
   var s = [];
   for (var iday = 0; iday < 92; ++iday) bd[iday] = [];
+  console.log('bsorted length = ' + bsorted.length);
   bsorted.forEach(function(d, j) {
-    console.log('update_bookings ' + d.tb + ' ' + displaybegin);
+    console.log('update_bookings ' + moment(d.tb).format());
     if (usr.length > 0 && !usr.includes(d.u)) return; // booking user not selected
     if (res.length > 0 && !res.includes(d.r)) return; // booking resource not selected
+    console.log(' e ' + d.te + ' ' + displaybegin);
+    console.log(' b ' + d.tb + ' ' + displayend);
     if (d.te < displaybegin) return; // clearly ends before display range
     if (d.tb > displayend) return; // clearly begins after display range
     console.log('in scope ' + d.tb);

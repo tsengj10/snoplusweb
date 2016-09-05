@@ -79,6 +79,7 @@ def find_bookings(qd):
   #now = datetime.datetime.now(datetime.timezone.utc)
   #past = (now + datetime.timedelta(-31))
   #future = (now + datetime.timedelta(92))
+  logger.info('find_bookings')
   now = now_timestamp()
   sday = 24*60*60
   past = now - 31*sday
@@ -104,6 +105,7 @@ def find_bookings(qd):
     n = qd.get(k)
     if n != None and n.isnumeric():
       kwargs[v] = int(n)
+      logger.info('Bookings filter {0}: {1}'.format(v,n))
   jb = []
   for b in Booking.objects.filter(**kwargs).order_by('begin_time'):
     #z = pytz.timezone(b.resource.default_zone.name)
