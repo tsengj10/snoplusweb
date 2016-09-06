@@ -35,7 +35,6 @@ def bookings(request):
     s = request.body.decode('utf-8')
     logger.info('Request:  {0}'.format(s))
     data = json.loads(s)
-    logger.info('  method {0}'.format(data['mm']))
     if data['mm'] == 'r':
       # request
       messages = request_resource(request.user, data)
@@ -54,8 +53,18 @@ def bookings(request):
       # unrecognized command
       messages = [ 'Unrecognized post response ' + s ]
       #return redirect('swap:bookings')
-      # we'd also like to return updated list of bookings
-    jb = find_bookings(qs)
+
+    # we'd also like to return updated list of bookings
+    kwargs = {}
+    for k,v in [ ('b0', 'begin_time__gte'), # minimum begin_time
+                 ('b1', 'begin_time__lte'), # maximum begin_time
+                 ('e0', 'end_time__gte'), # minimum end_time
+                 ('e1', 'end_time__lte'), # maximum end_time
+               ]:
+      if k in data:
+        n = data[k]
+        kwargs[v] = n
+    jb = find_bookings(kwargs)
     return JsonResponse({ 'b': jb, 'messages': messages })
 
   # respond to GET request
@@ -65,29 +74,18 @@ def bookings(request):
 # booking list in json form
 @login_required
 def bookings_json(request):
-  jb = find_bookings(request.GET)
-  logger.info('Bookings response = {0}'.format(jb))
-  return JsonResponse({ 'b': jb })
-
-#====================================================================
-
-# fetch bookings according to QueryDict
-
-def find_bookings(qd):
-  # list bookings according to query
   # by default, go back 31 days, forward 92 days
   #now = datetime.datetime.now(datetime.timezone.utc)
   #past = (now + datetime.timedelta(-31))
   #future = (now + datetime.timedelta(92))
-  logger.info('find_bookings')
+  logger.info('bookings_json')
   now = now_timestamp()
   sday = 24*60*60
   past = now - 31*sday
   future = now + 92*sday
 
+  qd = request.GET
   kwargs = {}
-  kwargs['begin_time__gte'] = past
-  kwargs['begin_time__lte'] = future
   for k,v in [ ('u', 'user__pk'), # user
                ('b', 'booker__pk'), # booker
                ('c', 'charge_group__pk'), # group to charge
@@ -95,7 +93,7 @@ def find_bookings(qd):
              ]:
     n = qd.get(k)
     if n != None and n.isnumeric():
-      kwargs[v] = n
+      kwargs[v] = int(n)
       logger.info('Bookings filter {0}: {1}'.format(v,n))
   for k,v in [ ('b0', 'begin_time__gte'), # minimum begin_time
                ('b1', 'begin_time__lte'), # maximum begin_time
@@ -106,6 +104,18 @@ def find_bookings(qd):
     if n != None and n.isnumeric():
       kwargs[v] = int(n)
       logger.info('Bookings filter {0}: {1}'.format(v,n))
+
+  jb = find_bookings(kwargs)
+  logger.info('Bookings response = {0}'.format(jb))
+  return JsonResponse({ 'b': jb })
+
+#====================================================================
+
+# fetch bookings according to QueryDict
+
+def find_bookings(kwargs):
+  # list bookings according to query
+  logger.info('find_bookings')
   jb = []
   for b in Booking.objects.filter(**kwargs).order_by('begin_time'):
     #z = pytz.timezone(b.resource.default_zone.name)
@@ -279,7 +289,7 @@ def delete_booking(user, data):
   logger.info('delete_booking')
   messages = []
   logger.info('Bookings to delete = {0}'.format(data['pk']))
-  bi = [ int(e) for e in data['bb'] ]
+  bi = [ int(e) for e in data['pk'] ]
   if len(bi) > 0:
     b = Booking.objects.filter(pk__in=bi).delete()
   return messages

@@ -595,6 +595,7 @@ $(document).ready(function() {
 
     $('#book_resource').html(hsru.join('')).multiselect({
       close: update_resource_selection,
+      multiple: (is_superuser || is_admin),
       noneSelectedText: 'Select resources',
       selectedText: '# of # resources',
       selectedList: 1
